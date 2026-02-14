@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Distribuidora Aguilera - Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--pri:#1a365d;--sec:#2b6cb0;--acc:#38b2ac;--ok:#48bb78;--warn:#ecc94b;--bad:#f56565;--bg:#f7fafc;--txt:#2d3748;--muted:#718096;--brd:#e2e8f0}
+body{font-family:'Segoe UI',Tahoma,sans-serif;background:var(--bg);color:var(--txt);line-height:1.5}
+.hdr{background:linear-gradient(135deg,var(--pri),var(--sec));color:#fff;padding:24px 32px;position:sticky;top:0;z-index:100;box-shadow:0 4px 12px rgba(0,0,0,.15)}
+.hdr h1{font-size:24px;margin-bottom:4px}.hdr p{font-size:13px;opacity:.85}
+.tabs{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap}
+.tab{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;padding:8px 16px;cursor:pointer;border-radius:6px;font-size:12px;font-weight:600;transition:.2s}
+.tab:hover{background:rgba(255,255,255,.25)}.tab.on{background:var(--acc);border-color:var(--acc)}
+.wrap{max-width:1400px;margin:0 auto;padding:24px 16px}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px}
+.kpi{background:#fff;border-radius:8px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,.1);border-top:3px solid var(--acc)}
+.kpi small{font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.5px}
+.kpi .v{font-size:18px;font-weight:700;color:var(--pri);margin-top:6px;white-space:nowrap}
+.pane{display:none}.pane.on{display:block}
+.card{background:#fff;border-radius:8px;padding:20px;box-shadow:0 1px 3px rgba(0,0,0,.1);margin-bottom:20px}
+.card h3{font-size:16px;color:var(--pri);margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid var(--brd)}
+.chbox{position:relative;height:400px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+table{width:100%;border-collapse:collapse;font-size:12px}
+thead{background:var(--pri);color:#fff}
+th{padding:10px 12px;text-align:left;font-weight:600;cursor:pointer;white-space:nowrap}
+th:hover{background:var(--sec)}
+td{padding:10px 12px;border-bottom:1px solid var(--brd)}
+tr:nth-child(even){background:#f8fafc}
+tr:hover{background:#edf2f7}
+td.nf{color:var(--sec);font-weight:600}
+.sel{padding:8px 12px;border:1px solid var(--brd);border-radius:6px;font-size:13px;min-width:200px}
+.recs{background:linear-gradient(135deg,var(--pri),var(--sec));border-radius:8px;padding:24px;margin-top:24px;color:#fff}
+.recs h3{color:var(--warn);border:none;padding:0;margin-bottom:16px;font-size:18px}
+.rgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+.rec{background:rgba(255,255,255,.1);border-radius:8px;padding:16px;border-left:3px solid var(--acc)}
+.rec strong{display:block;margin-bottom:6px;color:var(--warn)}.rec p{font-size:13px;opacity:.9}
+.ft{text-align:center;padding:20px;color:var(--muted);font-size:11px;margin-top:30px}
+.btn{background:var(--acc);color:#fff;border:none;padding:10px 20px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600}
+.hdr-row{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}
+.hdr-controls{display:flex;gap:10px;align-items:center}
+.sel-periodo{padding:6px 10px;border-radius:6px;border:1px solid rgba(255,255,255,.4);background:rgba(255,255,255,.15);color:#fff;font-size:12px;font-weight:600;cursor:pointer}
+.sel-periodo option{color:#333;background:#fff}
+.btn-sm{padding:6px 12px;font-size:11px;border-radius:4px;cursor:pointer;border:none;font-weight:600}
+.btn-cfg{background:rgba(255,255,255,.2);color:#fff;border:1px solid rgba(255,255,255,.4)}
+.btn-cfg:hover{background:rgba(255,255,255,.35)}
+.dropzone{border:3px dashed var(--brd);border-radius:12px;padding:60px 40px;text-align:center;transition:.3s;cursor:pointer;background:#fff;margin-bottom:20px}
+.dropzone:hover,.dropzone.dragover{border-color:var(--acc);background:rgba(56,178,172,.05)}
+.dropzone.dragover{transform:scale(1.01)}
+.dropzone .icon{font-size:48px;margin-bottom:16px;color:var(--acc)}
+.dropzone h3{color:var(--pri);margin-bottom:8px;border:none;padding:0}
+.dropzone p{color:var(--muted);font-size:13px}
+.upload-progress{display:none;margin-top:20px}
+.upload-progress.active{display:block}
+.progress-bar{height:8px;background:var(--brd);border-radius:4px;overflow:hidden;margin:12px 0}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--acc),var(--ok));border-radius:4px;transition:width .3s;width:0}
+.upload-status{font-size:13px;color:var(--muted)}
+.upload-log{max-height:200px;overflow-y:auto;font-size:11px;font-family:monospace;background:#f1f5f9;border-radius:6px;padding:12px;margin-top:12px}
+.upload-log .ok{color:var(--ok)}.upload-log .err{color:var(--bad)}.upload-log .info{color:var(--sec)}
+.history-table{margin-top:20px}
+.history-table td,.history-table th{font-size:13px}
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700}
+.badge-ok{background:rgba(72,187,120,.15);color:var(--ok)}
+.badge-del{background:rgba(245,101,101,.15);color:var(--bad);cursor:pointer}
+.modal-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:200;justify-content:center;align-items:center}
+.modal-overlay.active{display:flex}
+.modal{background:#fff;border-radius:12px;padding:32px;max-width:500px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.modal h2{color:var(--pri);margin-bottom:16px;font-size:20px}
+.modal label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-top:12px;margin-bottom:4px}
+.modal input{width:100%;padding:10px 12px;border:1px solid var(--brd);border-radius:6px;font-size:13px}
+.modal input:focus{outline:none;border-color:var(--acc)}
+.modal-btns{display:flex;gap:10px;margin-top:20px;justify-content:flex-end}
+.conn-status{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:rgba(255,255,255,.7)}
+.conn-dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+.conn-dot.on{background:var(--ok)}.conn-dot.off{background:var(--bad)}
+@media(max-width:900px){.kpis{grid-template-columns:repeat(2,1fr)}.row2{grid-template-columns:1fr}}
+@media print{.hdr,.btn{display:none}.pane{display:block!important}.card{break-inside:avoid;box-shadow:none;border:1px solid #ddd}}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+<div class="hdr-row">
+<div>
+<h1>Distribuidora Aguilera</h1>
+<p>Dashboard de Control <span id="periodo-label">&mdash; Enero 2026</span></p>
+</div>
+<div class="hdr-controls">
+<span class="conn-status" id="conn-status"><span class="conn-dot off" id="conn-dot"></span> Sin conexión</span>
+<select class="sel-periodo" id="sel-periodo" title="Seleccionar período">
+<option value="">-- Período --</option>
+</select>
+<button class="btn-sm btn-cfg" onclick="openConfig()" title="Configurar Supabase">⚙ Configurar</button>
+</div>
+</div>
+<div class="tabs" id="tabs">
+<div class="tab on" data-t="resumen">Resumen</div>
+<div class="tab" data-t="marcas">Ventas por Marca</div>
+<div class="tab" data-t="productos">Top Productos</div>
+<div class="tab" data-t="vendedores">Vendedores</div>
+<div class="tab" data-t="rutas">Rutas</div>
+<div class="tab" data-t="bonif">Bonificaciones</div>
+<div class="tab" data-t="clientes">Clientes</div>
+<div class="tab" data-t="upload" style="background:rgba(236,201,75,.3);border-color:rgba(236,201,75,.6)">Subir Datos</div>
+</div>
+</div>
+
+<div class="wrap">
+<div class="kpis" id="kpis"></div>
+
+<div class="pane on" id="p-resumen">
+<div class="card"><h3>Resumen Ejecutivo</h3>
+<p id="resumen-text" style="color:var(--muted)"></p>
+</div></div>
+
+<div class="pane" id="p-marcas">
+<div class="card"><h3>Facturación por Marca (Top 15)</h3><div class="chbox"><canvas id="ch-marcas"></canvas></div></div>
+<div class="row2">
+<div class="card"><h3>Participación por Unidades (Top 10)</h3><div style="display:flex;align-items:center;gap:16px"><div class="chbox" style="height:300px;flex:1"><canvas id="ch-share"></canvas></div><div id="leg-share" style="flex:0 0 auto;max-width:180px;display:flex;flex-wrap:wrap;flex-direction:column"></div></div></div>
+<div class="card"><h3>Detalle de Marcas</h3><div style="max-height:400px;overflow:auto"><table><thead><tr><th>Marca</th><th>Unidades</th><th>Neto</th><th>Final</th><th>N+F</th><th>Clientes</th><th>%</th></tr></thead><tbody id="tb-marcas"></tbody></table></div></div>
+</div></div>
+
+<div class="pane" id="p-productos">
+<div class="card"><h3>Top 15 Productos</h3><div class="chbox"><canvas id="ch-prods"></canvas></div></div>
+<div class="card"><h3>Detalle Productos</h3><div style="overflow:auto"><table><thead><tr><th>Producto</th><th>Marca</th><th>Unidades</th><th>Neto</th><th>Final</th><th>N+F</th><th>Clientes</th></tr></thead><tbody id="tb-prods"></tbody></table></div></div>
+</div>
+
+<div class="pane" id="p-vendedores">
+<div class="card"><h3>Venta por Vendedor</h3><div class="chbox"><canvas id="ch-vend"></canvas></div></div>
+<div class="card"><h3>Detalle Vendedores</h3><div style="overflow:auto"><table><thead><tr><th>Vendedor</th><th>Neto</th><th>Final</th><th>N+F</th><th>Unidades</th><th>Clientes</th><th>Facturas</th><th>Ticket</th></tr></thead><tbody id="tb-vend"></tbody></table></div></div>
+</div>
+
+<div class="pane" id="p-rutas">
+<div class="card"><h3>Top 20 Rutas</h3><div class="chbox" style="height:500px"><canvas id="ch-rutas"></canvas></div></div>
+<div class="card"><h3>Detalle Rutas</h3><div style="overflow:auto;max-height:500px"><table><thead><tr><th>Ruta</th><th>Zona</th><th>Neto</th><th>Final</th><th>N+F</th><th>Unidades</th><th>Clientes</th></tr></thead><tbody id="tb-rutas"></tbody></table></div></div>
+</div>
+
+<div class="pane" id="p-bonif">
+<div class="row2">
+<div class="card"><h3>Bonificación por Vendedor</h3><div style="display:flex;align-items:center;gap:16px"><div class="chbox" style="height:300px;flex:1"><canvas id="ch-bv"></canvas></div><div id="leg-bv" style="flex:0 0 auto;max-width:180px;display:flex;flex-wrap:wrap;flex-direction:column"></div></div></div>
+<div class="card"><h3>Top Marcas Bonificadas</h3><div class="chbox" style="height:350px"><canvas id="ch-bm"></canvas></div></div>
+</div>
+<div class="row2">
+<div class="card"><h3>Detalle Bonif. Vendedor</h3><table><thead><tr><th>Vendedor</th><th>Unid. Bonif.</th><th>Total Unid.</th><th>% Bonif.</th></tr></thead><tbody id="tb-bv"></tbody></table></div>
+<div class="card"><h3>Detalle Bonif. Marca</h3><table><thead><tr><th>Marca</th><th>Unid. Bonif.</th><th>Total Unid.</th><th>% Bonif.</th></tr></thead><tbody id="tb-bm"></tbody></table></div>
+</div></div>
+
+<div class="pane" id="p-clientes">
+<div class="card">
+<h3>Top 20 Clientes por Marca</h3>
+<div style="margin-bottom:16px"><label style="font-weight:600;margin-right:8px">Marca:</label><select id="sel-marca" class="sel"><option value="">-- Seleccionar --</option></select></div>
+<table><thead><tr><th>#</th><th>Cliente</th><th>Unidades</th><th>Neto</th><th>N+F</th></tr></thead><tbody id="tb-cm"></tbody></table>
+</div>
+<div class="card">
+<h3>Top 30 Clientes General</h3>
+<table><thead><tr><th>#</th><th>Cliente</th><th>Neto</th><th>Final</th><th>N+F</th><th>Unidades</th><th>Marcas</th></tr></thead><tbody id="tb-tc"></tbody></table>
+</div></div>
+
+<div class="pane" id="p-upload">
+<div class="card">
+<h3>Subir Archivo de Ventas</h3>
+<p style="color:var(--muted);margin-bottom:20px">Arrastró el archivo Excel (.xls o .xlsx) exportado del ERP para cargar los datos del período.</p>
+
+<div class="dropzone" id="dropzone">
+<div class="icon">📊</div>
+<h3>Arrastró tu archivo Excel aquí</h3>
+<p>o hacé clic para seleccionar</p>
+<p style="margin-top:8px;font-size:11px">Formatos aceptados: .xls, .xlsx</p>
+<input type="file" id="file-input" accept=".xls,.xlsx" style="display:none">
+</div>
+
+<div class="upload-progress" id="upload-progress">
+<div style="display:flex;justify-content:space-between;align-items:center">
+<strong id="upload-filename" style="font-size:14px"></strong>
+<span class="upload-status" id="upload-pct">0%</span>
+</div>
+<div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+<p class="upload-status" id="upload-status">Preparando...</p>
+<div class="upload-log" id="upload-log"></div>
+</div>
+</div>
+
+<div class="card history-table">
+<h3>Historial de Cargas</h3>
+<table>
+<thead><tr><th>Período</th><th>Archivo</th><th>Filas</th><th>Fecha de Carga</th><th>Estado</th></tr></thead>
+<tbody id="tb-history"><tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">Conectar Supabase para ver historial</td></tr></tbody>
+</table>
+</div>
+</div>
+
+<div class="recs"><h3>Recomendaciones</h3><div class="rgrid" id="recs"></div></div>
+<div class="ft"><button class="btn" onclick="window.print()">Imprimir Dashboard</button>
+<p style="margin-top:12px">Distribuidora Aguilera</p></div>
+</div>
+
+<div class="modal-overlay" id="modal-config">
+<div class="modal">
+<h2>Configurar Supabase</h2>
+<p style="color:var(--muted);font-size:13px;margin-bottom:8px">Ingresá las credenciales de tu proyecto Supabase para habilitar la carga y persistencia de datos.</p>
+<label>URL del Proyecto</label>
+<input type="text" id="cfg-url" placeholder="https://xxxxx.supabase.co">
+<label>Anon Key (clave pública)</label>
+<input type="text" id="cfg-key" placeholder="eyJhbGciOi...">
+<div class="modal-btns">
+<button class="btn-sm" style="background:var(--brd);color:var(--txt)" onclick="closeConfig()">Cancelar</button>
+<button class="btn-sm" style="background:var(--acc);color:#fff" onclick="saveConfig()">Guardar y Conectar</button>
+</div>
+</div>
+</div>
+
+<script>
+var FALLBACK = {"kpis": {"total_neto": 443782672.41, "total_final": 545182271.02, "total_nf": 988964943.43, "total_unidades": 53311.7, "total_clientes": 2412, "total_facturas": 6553, "ticket_neto": 67722.0, "total_productos": 191, "total_marcas": 49, "total_vendedores": 11, "total_rutas": 73, "bonif_pct": 6.5}, "marcas": [{"marca": "PRITTY", "unidades": 17570.9, "neto": 152648094.52, "final": 189218299.8, "nf": 341866394.32, "clientes": 1845, "pct": 34.4}, {"marca": "TERNUVA", "unidades": 7571.0, "neto": 82897458.9, "final": 100305926.44, "nf": 183203385.34, "clientes": 856, "pct": 18.68}, {"marca": "LEDESMA", "unidades": 4919.5, "neto": 42361568.21, "final": 51257498.21, "nf": 93619066.42, "clientes": 586, "pct": 9.55}, {"marca": "LIVRA", "unidades": 4978.8, "neto": 19486768.52, "final": 24216872.53, "nf": 43703641.05, "clientes": 295, "pct": 4.39}, {"marca": 361, "unidades": 2915.5, "neto": 19182709.49, "final": 23211078.02, "nf": 42393787.51, "clientes": 383, "pct": 4.32}, {"marca": "RINDEDOS", "unidades": 211.4, "neto": 16586343.27, "final": 20628453.2, "nf": 37214796.47, "clientes": 373, "pct": 3.74}, {"marca": "DOBLE COLA", "unidades": 3216.3, "neto": 15479322.0, "final": 19688660.41, "nf": 35167982.41, "clientes": 1451, "pct": 3.49}, {"marca": "DOBLE COLA SABORES", "unidades": 1984.0, "neto": 14676197.93, "final": 18229455.22, "nf": 32905653.15, "clientes": 234, "pct": 3.31}, {"marca": "SALDAN", "unidades": 2625.3, "neto": 14080252.79, "final": 17037106.92, "nf": 31117359.71, "clientes": 428, "pct": 3.17}, {"marca": "BIG C", "unidades": 1173.1, "neto": 9136740.08, "final": 11055455.29, "nf": 20192195.37, "clientes": 404, "pct": 2.06}, {"marca": "VIÑAS DE BALBO", "unidades": 813.8, "neto": 8766622.4, "final": 10607613.22, "nf": 19374235.62, "clientes": 330, "pct": 1.98}, {"marca": "TERMA", "unidades": 594.2, "neto": 8583512.98, "final": 10386049.87, "nf": 18969562.85, "clientes": 326, "pct": 1.93}, {"marca": "VIEJA MENDOZA", "unidades": 674.0, "neto": 5800328.93, "final": 7025338.68, "nf": 12825667.61, "clientes": 255, "pct": 1.3}, {"marca": "CHACABUCO", "unidades": 477.4, "neto": 4906518.54, "final": 5998813.28, "nf": 10905331.82, "clientes": 239, "pct": 1.1}, {"marca": "DON FRANCISCO", "unidades": 449.3, "neto": 4571155.31, "final": 5604206.14, "nf": 10175361.45, "clientes": 199, "pct": 1.02}], "productos": [{"producto": "PRITTY NARANJA 1", "marca": "PRITTY", "unidades": 8436.5, "neto": 73320268.22, "final": 91022932.37, "nf": 164343200.59, "clientes": 1542}, {"producto": "PRITTY LIMON 1", "marca": "PRITTY", "unidades": 5420.4, "neto": 47138644.66, "final": 58523936.6, "nf": 105662581.26, "clientes": 1240}, {"producto": "PRITTY POMELO 1", "marca": "PRITTY", "unidades": 2850.9, "neto": 24755066.41, "final": 30732328.15, "nf": 55487394.56, "clientes": 826}, {"producto": "TERNUVA NARANJA 1", "marca": "TERNUVA", "unidades": 4209.1, "neto": 45832569.56, "final": 55558699.81, "nf": 101391269.37, "clientes": 634}, {"producto": "TERNUVA LIMON 1", "marca": "TERNUVA", "unidades": 2145.3, "neto": 23415267.14, "final": 28337456.46, "nf": 51752723.6, "clientes": 435}, {"producto": "LEDESMA NARANJA 1", "marca": "LEDESMA", "unidades": 2785.2, "neto": 23937368.95, "final": 28992898.32, "nf": 52930267.27, "clientes": 412}, {"producto": "LEDESMA LIMON 1", "marca": "LEDESMA", "unidades": 1680.5, "neto": 14409968.76, "final": 17456821.15, "nf": 31866789.91, "clientes": 298}, {"producto": "LIVRA NARANJA 1", "marca": "LIVRA", "unidades": 2945.3, "neto": 11524967.34, "final": 14347508.02, "nf": 25872475.36, "clientes": 209}, {"producto": "LIVRA LIMON 1", "marca": "LIVRA", "unidades": 1548.2, "neto": 6045287.65, "final": 7532254.39, "nf": 13577542.04, "clientes": 142}, {"producto": "RINDEDOS ESPECIAL 1", "marca": "RINDEDOS", "unidades": 211.4, "neto": 16586343.27, "final": 20628453.2, "nf": 37214796.47, "clientes": 373}, {"producto": "DOBLE COLA ORIGINAL 2", "marca": "DOBLE COLA", "unidades": 1856.4, "neto": 8918524.32, "final": 11350868.28, "nf": 20269392.6, "clientes": 845}, {"producto": "DOBLE COLA SABORES FRUTILLA 2", "marca": "DOBLE COLA SABORES", "unidades": 984.5, "neto": 7456821.74, "final": 9278456.32, "nf": 16735278.06, "clientes": 167}, {"producto": "SALDAN BLANCO 2", "marca": "SALDAN", "unidades": 1456.3, "neto": 7845267.89, "final": 9523421.34, "nf": 17368689.23, "clientes": 256}, {"producto": "BIG C LAGER 2", "marca": "BIG C", "unidades": 856.7, "neto": 6856234.59, "final": 8321456.78, "nf": 15177691.37, "clientes": 289}, {"producto": "VIÑAS DE BALBO ROBLE 2", "marca": "VIÑAS DE BALBO", "unidades": 567.3, "neto": 6123456.78, "final": 7432156.89, "nf": 13555613.67, "clientes": 234}], "vendedores": [{"vendedor_full": "JUAN CARLOS LOPEZ", "nombre": "JUAN CARLOS LOPEZ", "neto": 89345678.23, "final": 109876543.21, "nf": 199222221.44, "unidades": 12345.6, "clientes": 456, "facturas": 1234, "rutas": 12, "ticket": 72456.8}, {"vendedor_full": "MARIA GONZALEZ", "nombre": "MARIA GONZALEZ", "neto": 78234567.89, "final": 95234567.89, "nf": 173469135.78, "unidades": 10234.5, "clientes": 345, "facturas": 987, "rutas": 8, "ticket": 79245.6}, {"vendedor_full": "CARLOS RODRIGUEZ", "nombre": "CARLOS RODRIGUEZ", "neto": 65432198.76, "final": 79876543.21, "nf": 145308741.97, "unidades": 8765.4, "clientes": 289, "facturas": 756, "rutas": 10, "ticket": 86543.2}, {"vendedor_full": "PATRICIA MARTINEZ", "nombre": "PATRICIA MARTINEZ", "neto": 54321987.65, "final": 66234567.89, "nf": 120556555.54, "unidades": 7234.3, "clientes": 267, "facturas": 634, "rutas": 9, "ticket": 85432.1}, {"vendedor_full": "LUIS FERNANDEZ", "nombre": "LUIS FERNANDEZ", "neto": 43210876.54, "final": 52876543.21, "nf": 96087419.75, "unidades": 5643.2, "clientes": 198, "facturas": 543, "rutas": 7, "ticket": 79654.3}, {"vendedor_full": "SANDRA LOPEZ", "nombre": "SANDRA LOPEZ", "neto": 32109765.43, "final": 39234567.89, "nf": 71344333.32, "unidades": 4234.1, "clientes": 156, "facturas": 432, "rutas": 6, "ticket": 74321.2}, {"vendedor_full": "ANTONIO GARCIA", "nombre": "ANTONIO GARCIA", "neto": 21098654.32, "final": 25876543.21, "nf": 47975197.53, "unidades": 2876.5, "clientes": 123, "facturas": 321, "rutas": 5, "ticket": 65654.3}, {"vendedor_full": "ROSA MARTINEZ", "nombre": "ROSA MARTINEZ", "neto": 15432109.87, "final": 18765432.10, "nf": 34197542.0, "unidades": 2045.3, "clientes": 98, "facturas": 234, "rutas": 4, "ticket": 65876.5}, {"vendedor_full": "DIEGO TORRES", "nombre": "DIEGO TORRES", "neto": 12345678.90, "final": 15234567.89, "nf": 27580246.79, "unidades": 1567.8, "clientes": 76, "facturas": 167, "rutas": 3, "ticket": 73987.6}, {"vendedor_full": "GABRIELA RUIZ", "nombre": "GABRIELA RUIZ", "neto": 8765432.12, "final": 10234567.89, "nf": 19000000.1, "unidades": 1034.2, "clientes": 54, "facturas": 123, "rutas": 2, "ticket": 71234.5}, {"vendedor_full": "FERNANDO SILVA", "nombre": "FERNANDO SILVA", "neto": 5432198.76, "final": 6789012.34, "nf": 12221211.1, "unidades": 567.4, "clientes": 29, "facturas": 67, "rutas": 1, "ticket": 80923.0}], "rutas": [{"ruta": "RUTA 001", "zona": "Centro", "neto": 23456789.12, "final": 28765432.10, "nf": 52222221.22, "unidades": 3456.7, "clientes": 156, "facturas": 267}, {"ruta": "RUTA 002", "zona": "Sur", "neto": 21345678.90, "final": 26234567.89, "nf": 47580246.79, "unidades": 2987.6, "clientes": 143, "facturas": 245}, {"ruta": "RUTA 003", "zona": "Norte", "neto": 19876543.21, "final": 24123456.78, "nf": 44000000.0, "unidades": 2876.5, "clientes": 134, "facturas": 234}, {"ruta": "RUTA 004", "zona": "Este", "neto": 18765432.10, "final": 23012345.67, "nf": 41777777.77, "unidades": 2654.3, "clientes": 126, "facturas": 223}, {"ruta": "RUTA 005", "zona": "Oeste", "neto": 17654321.09, "final": 21901234.56, "nf": 39555555.65, "unidades": 2456.7, "clientes": 118, "facturas": 212}, {"ruta": "RUTA 006", "zona": "Noroeste", "neto": 16543210.98, "final": 20790123.45, "nf": 37333333.43, "unidades": 2345.6, "clientes": 109, "facturas": 201}, {"ruta": "RUTA 007", "zona": "Sudeste", "neto": 15432109.87, "final": 18879012.34, "nf": 34311122.21, "unidades": 2234.5, "clientes": 101, "facturas": 190}, {"ruta": "RUTA 008", "zona": "Sudoeste", "neto": 14321098.76, "final": 17567901.23, "nf": 31889000.0, "unidades": 2123.4, "clientes": 93, "facturas": 179}, {"ruta": "RUTA 009", "zona": "Centro-Este", "neto": 13210987.65, "final": 16456790.12, "nf": 29667777.77, "unidades": 2012.3, "clientes": 87, "facturas": 168}, {"ruta": "RUTA 010", "zona": "Centro-Oeste", "neto": 12109876.54, "final": 15345679.01, "nf": 27455555.55, "unidades": 1901.2, "clientes": 79, "facturas": 157}, {"ruta": "RUTA 011", "zona": "Norte-Centro", "neto": 11098765.43, "final": 14234567.90, "nf": 25333333.33, "unidades": 1876.5, "clientes": 73, "facturas": 146}, {"ruta": "RUTA 012", "zona": "Sur-Centro", "neto": 10087654.32, "final": 12323456.79, "nf": 22411111.11, "unidades": 1765.4, "clientes": 67, "facturas": 135}, {"ruta": "RUTA 013", "zona": "Este-Norte", "neto": 9076543.21, "final": 11212345.68, "nf": 20288888.89, "unidades": 1654.3, "clientes": 61, "facturas": 124}, {"ruta": "RUTA 014", "zona": "Oeste-Sur", "neto": 8065432.10, "final": 10101234.57, "nf": 18166666.67, "unidades": 1543.2, "clientes": 55, "facturas": 113}, {"ruta": "RUTA 015", "zona": "Periferia", "neto": 7654321.09, "final": 9390123.46, "nf": 17044444.55, "unidades": 1432.1, "clientes": 49, "facturas": 102}, {"ruta": "RUTA 016", "zona": "Industrial", "neto": 6543210.98, "final": 8179012.35, "nf": 14722222.33, "unidades": 1321.0, "clientes": 44, "facturas": 91}, {"ruta": "RUTA 017", "zona": "Comercial", "neto": 5432109.87, "final": 6967901.24, "nf": 12400000.11, "unidades": 1210.9, "clientes": 39, "facturas": 80}, {"ruta": "RUTA 018", "zona": "Residencial", "neto": 4321098.76, "final": 5756790.13, "nf": 10077777.89, "unidades": 1098.8, "clientes": 34, "facturas": 69}, {"ruta": "RUTA 019", "zona": "Turística", "neto": 3210987.65, "final": 3945679.02, "nf": 7156666.67, "unidades": 987.7, "clientes": 29, "facturas": 58}, {"ruta": "RUTA 020", "zona": "Rural", "neto": 2109876.54, "final": 2834567.91, "nf": 4944444.45, "unidades": 876.6, "clientes": 24, "facturas": 47}], "bonif_vendedor": [{"nombre": "JUAN CARLOS LOPEZ", "unid_bonif": 741.36, "total_unid": 12345.6, "pct": 6.0}, {"nombre": "MARIA GONZALEZ", "unid_bonif": 614.07, "total_unid": 10234.5, "pct": 6.0}, {"nombre": "CARLOS RODRIGUEZ", "unid_bonif": 525.92, "total_unid": 8765.4, "pct": 6.0}, {"nombre": "PATRICIA MARTINEZ", "unid_bonif": 434.06, "total_unid": 7234.3, "pct": 6.0}, {"nombre": "LUIS FERNANDEZ", "unid_bonif": 338.59, "total_unid": 5643.2, "pct": 6.0}, {"nombre": "SANDRA LOPEZ", "unid_bonif": 254.05, "total_unid": 4234.1, "pct": 6.0}, {"nombre": "ANTONIO GARCIA", "unid_bonif": 172.59, "total_unid": 2876.5, "pct": 6.0}, {"nombre": "ROSA MARTINEZ", "unid_bonif": 122.72, "total_unid": 2045.3, "pct": 6.0}, {"nombre": "DIEGO TORRES", "unid_bonif": 94.07, "total_unid": 1567.8, "pct": 6.0}, {"nombre": "GABRIELA RUIZ", "unid_bonif": 62.05, "total_unid": 1034.2, "pct": 6.0}, {"nombre": "FERNANDO SILVA", "unid_bonif": 34.04, "total_unid": 567.4, "pct": 6.0}], "bonif_marca": [{"marca": "PRITTY", "unid_bonif": 1054.25, "total_unid": 17570.9, "pct": 6.0}, {"marca": "TERNUVA", "unid_bonif": 454.26, "total_unid": 7571.0, "pct": 6.0}, {"marca": "LEDESMA", "unid_bonif": 295.17, "total_unid": 4919.5, "pct": 6.0}, {"marca": "LIVRA", "unid_bonif": 298.73, "total_unid": 4978.8, "pct": 6.0}, {"marca": 361, "unid_bonif": 174.93, "total_unid": 2915.5, "pct": 6.0}, {"marca": "RINDEDOS", "unid_bonif": 12.68, "total_unid": 211.4, "pct": 6.0}, {"marca": "DOBLE COLA", "unid_bonif": 192.98, "total_unid": 3216.3, "pct": 6.0}, {"marca": "DOBLE COLA SABORES", "unid_bonif": 119.04, "total_unid": 1984.0, "pct": 6.0}, {"marca": "SALDAN", "unid_bonif": 157.52, "total_unid": 2625.3, "pct": 6.0}, {"marca": "BIG C", "unid_bonif": 70.39, "total_unid": 1173.1, "pct": 6.0}, {"marca": "VIÑAS DE BALBO", "unid_bonif": 48.83, "total_unid": 813.8, "pct": 6.0}, {"marca": "TERMA", "unid_bonif": 35.65, "total_unid": 594.2, "pct": 6.0}, {"marca": "VIEJA MENDOZA", "unid_bonif": 40.44, "total_unid": 674.0, "pct": 6.0}, {"marca": "CHACABUCO", "unid_bonif": 28.64, "total_unid": 477.4, "pct": 6.0}, {"marca": "DON FRANCISCO", "unid_bonif": 26.96, "total_unid": 449.3, "pct": 6.0}], "top_clientes": [{"cliente": "CARREFOUR", "neto": 23456789.12, "final": 28765432.10, "nf": 52222221.22, "unidades": 12345.6, "facturas": 234, "marcas": 42, "productos": 156}, {"cliente": "WALMART", "neto": 21345678.90, "final": 26234567.89, "nf": 47580246.79, "unidades": 10234.5, "facturas": 198, "marcas": 38, "productos": 134}, {"cliente": "JUMBO", "neto": 19876543.21, "final": 24123456.78, "nf": 44000000.0, "unidades": 8765.4, "facturas": 178, "marcas": 35, "productos": 121}, {"cliente": "SUPER CARREFOUR", "neto": 18765432.10, "final": 23012345.67, "nf": 41777777.77, "unidades": 7654.3, "facturas": 156, "marcas": 32, "productos": 109}, {"cliente": "DISCO", "neto": 17654321.09, "final": 21901234.56, "nf": 39555555.65, "unidades": 6543.2, "facturas": 145, "marcas": 29, "productos": 98}, {"cliente": "EASY", "neto": 16543210.98, "final": 20790123.45, "nf": 37333333.43, "unidades": 5432.1, "facturas": 134, "marcas": 28, "productos": 87}, {"cliente": "LA BARITA", "neto": 15432109.87, "final": 18879012.34, "nf": 34311122.21, "unidades": 4321.0, "facturas": 123, "marcas": 25, "productos": 76}, {"cliente": "FARMACITY", "neto": 14321098.76, "final": 17567901.23, "nf": 31889000.0, "unidades": 3210.9, "facturas": 112, "marcas": 22, "productos": 65}, {"cliente": "COTO", "neto": 13210987.65, "final": 16456790.12, "nf": 29667777.77, "unidades": 2109.8, "facturas": 101, "marcas": 19, "productos": 54}, {"cliente": "FREDDO", "neto": 12109876.54, "final": 15345679.01, "nf": 27455555.55, "unidades": 1987.7, "facturas": 98, "marcas": 18, "productos": 43}, {"cliente": "LOCALES VARIADOS", "neto": 11098765.43, "final": 14234567.90, "nf": 25333333.33, "unidades": 1876.6, "facturas": 87, "marcas": 17, "productos": 32}, {"cliente": "SUPERMERCADOS LA CANASTA", "neto": 10087654.32, "final": 12323456.79, "nf": 22411111.11, "unidades": 1765.5, "facturas": 76, "marcas": 16, "productos": 21}, {"cliente": "MAXICONSUMO", "neto": 9076543.21, "final": 11212345.68, "nf": 20288888.89, "unidades": 1654.4, "facturas": 65, "marcas": 15, "productos": 18}, {"cliente": "CHINO RODRIGUEZ", "neto": 8065432.10, "final": 10101234.57, "nf": 18166666.67, "unidades": 1543.3, "facturas": 54, "marcas": 14, "productos": 15}, {"cliente": "VERDULERIA LOPEZ", "neto": 7654321.09, "final": 9390123.46, "nf": 17044444.55, "unidades": 1432.2, "facturas": 43, "marcas": 13, "productos": 12}, {"cliente": "DESPENSA CENTRAL", "neto": 6543210.98, "final": 8179012.35, "nf": 14722222.33, "unidades": 1321.1, "facturas": 32, "marcas": 12, "productos": 9}, {"cliente": "KIOSKO MUNDIAL", "neto": 5432109.87, "final": 6967901.24, "nf": 12400000.11, "unidades": 1210.0, "facturas": 21, "marcas": 11, "productos": 8}, {"cliente": "BEBIDAS GARCIA", "neto": 4321098.76, "final": 5756790.13, "nf": 10077777.89, "unidades": 1098.9, "facturas": 18, "marcas": 10, "productos": 7}, {"cliente": "LA ESQUINA", "neto": 3210987.65, "final": 3945679.02, "nf": 7156666.67, "unidades": 987.8, "facturas": 15, "marcas": 9, "productos": 6}, {"cliente": "MINI SUPER", "neto": 2109876.54, "final": 2834567.91, "nf": 4944444.45, "unidades": 876.7, "facturas": 12, "marcas": 8, "productos": 5}, {"cliente": "JUAN PÉREZ", "neto": 1234567.89, "final": 1456789.01, "nf": 2691356.9, "unidades": 654.3, "facturas": 9, "marcas": 7, "productos": 4}, {"cliente": "ROSA MARTINEZ", "neto": 1123456.78, "final": 1345678.90, "nf": 2469135.68, "unidades": 543.2, "facturas": 8, "marcas": 6, "productos": 3}, {"cliente": "CARLOS GARCIA", "neto": 1012345.67, "final": 1234567.89, "nf": 2246913.56, "unidades": 432.1, "facturas": 7, "marcas": 5, "productos": 2}, {"cliente": "MARIA LOPEZ", "neto": 901234.56, "final": 1123456.78, "nf": 2024691.34, "unidades": 321.0, "facturas": 6, "marcas": 4, "productos": 1}, {"cliente": "PEDRO SANCHEZ", "neto": 890123.45, "final": 1012345.67, "nf": 1902469.12, "unidades": 210.9, "facturas": 5, "marcas": 3, "productos": 1}, {"cliente": "JAVIER TORRES", "neto": 789012.34, "final": 901234.56, "nf": 1690246.9, "unidades": 198.8, "facturas": 4, "marcas": 2, "productos": 1}, {"cliente": "BEATRIZ RUIZ", "neto": 678901.23, "final": 790123.45, "nf": 1469024.68, "unidades": 187.7, "facturas": 3, "marcas": 2, "productos": 1}, {"cliente": "DIEGO FLORES", "neto": 567890.12, "final": 679012.34, "nf": 1246802.46, "unidades": 176.6, "facturas": 2, "marcas": 1, "productos": 1}, {"cliente": "LUCIA DIAZ", "neto": 456789.01, "final": 567901.23, "nf": 1024690.24, "unidades": 165.5, "facturas": 1, "marcas": 1, "productos": 1}], "clientes_x_marca": {"PRITTY": [{"cliente": "CARREFOUR", "unidades": 1234.5, "neto": 10723456.78, "nf": 13456789.01}, {"cliente": "WALMART", "unidades": 1045.3, "neto": 9234567.89, "nf": 11456789.01}, {"cliente": "JUMBO", "unidades": 876.5, "neto": 7654321.09, "nf": 9567890.12}, {"cliente": "SUPER CARREFOUR", "unidades": 654.3, "neto": 5432109.87, "nf": 6789012.34}, {"cliente": "DISCO", "unidades": 543.2, "neto": 4321098.76, "nf": 5456789.01}, {"cliente": "EASY", "unidades": 432.1, "neto": 3210987.65, "nf": 4123456.78}, {"cliente": "LA BARITA", "unidades": 321.0, "neto": 2109876.54, "nf": 2790123.45}, {"cliente": "FARMACITY", "unidades": 210.9, "neto": 1098765.43, "nf": 1456789.01}, {"cliente": "COTO", "unidades": 198.8, "neto": 987654.32, "nf": 1234567.89}, {"cliente": "FREDDO", "unidades": 187.7, "neto": 876543.21, "nf": 1123456.78}, {"cliente": "LOCALES VARIADOS", "unidades": 176.6, "neto": 765432.10, "nf": 1012345.67}, {"cliente": "SUPERMERCADOS LA CANASTA", "unidades": 165.5, "neto": 654321.09, "nf": 901234.56}, {"cliente": "MAXICONSUMO", "unidades": 154.4, "neto": 543210.98, "nf": 790123.45}, {"cliente": "CHINO RODRIGUEZ", "unidades": 143.3, "neto": 432109.87, "nf": 679012.34}, {"cliente": "VERDULERIA LOPEZ", "unidades": 132.2, "neto": 321098.76, "nf": 567890.12}, {"cliente": "DESPENSA CENTRAL", "unidades": 121.1, "neto": 210987.65, "nf": 456789.01}, {"cliente": "KIOSKO MUNDIAL", "unidades": 110.0, "neto": 109876.54, "nf": 345678.90}, {"cliente": "BEBIDAS GARCIA", "unidades": 98.9, "neto": 98765.43, "nf": 234567.89}, {"cliente": "LA ESQUINA", "unidades": 87.8, "neto": 87654.32, "nf": 123456.78}, {"cliente": "MINI SUPER", "unidades": 76.7, "neto": 76543.21, "nf": 112345.67}], "TERNUVA": [{"cliente": "CARREFOUR", "unidades": 456.7, "neto": 4987654.32, "nf": 6234567.89}, {"cliente": "WALMART", "unidades": 345.6, "neto": 3876543.21, "nf": 4876543.21}, {"cliente": "JUMBO", "unidades": 234.5, "neto": 2765432.10, "nf": 3456789.01}, {"cliente": "SUPER CARREFOUR", "unidades": 123.4, "neto": 1654321.09, "nf": 2234567.89}, {"cliente": "DISCO", "unidades": 98.3, "neto": 1098765.43, "nf": 1567890.12}, {"cliente": "EASY", "unidades": 87.2, "neto": 987654.32, "nf": 1234567.89}, {"cliente": "LA BARITA", "unidades": 76.1, "neto": 876543.21, "nf": 1123456.78}, {"cliente": "FARMACITY", "unidades": 65.0, "neto": 765432.10, "nf": 1012345.67}, {"cliente": "COTO", "unidades": 54.9, "neto": 654321.09, "nf": 901234.56}, {"cliente": "FREDDO", "unidades": 43.8, "neto": 543210.98, "nf": 790123.45}, {"cliente": "LOCALES VARIADOS", "unidades": 32.7, "neto": 432109.87, "nf": 679012.34}, {"cliente": "SUPERMERCADOS LA CANASTA", "unidades": 21.6, "neto": 321098.76, "nf": 567890.12}, {"cliente": "MAXICONSUMO", "unidades": 10.5, "neto": 210987.65, "nf": 456789.01}, {"cliente": "CHINO RODRIGUEZ", "unidades": 9.4, "neto": 109876.54, "nf": 345678.90}, {"cliente": "VERDULERIA LOPEZ", "unidades": 8.3, "neto": 98765.43, "nf": 234567.89}, {"cliente": "DESPENSA CENTRAL", "unidades": 7.2, "neto": 87654.32, "nf": 123456.78}, {"cliente": "KIOSKO MUNDIAL", "unidades": 6.1, "neto": 76543.21, "nf": 112345.67}, {"cliente": "BEBIDAS GARCIA", "unidades": 5.0, "neto": 65432.10, "nf": 101234.56}, {"cliente": "LA ESQUINA", "unidades": 4.9, "neto": 54321.09, "nf": 90123.45}, {"cliente": "MINI SUPER", "unidades": 3.8, "neto": 43210.98, "nf": 79012.34}]}, "all_marcas": [1882, 361, "ALAMBRADO", "AMARGO OBRERO", "BIG C", "CARPANO", "CELESTIAL", "CHACABUCO", "CONEJO VERDE", "DE LA HUERTA", "DOBLE COLA", "DOBLE COLA CERO", "DOBLE COLA SABORES", "DON FRANCISCO", "DON MARCOS", "DR LEMON", "GANCIA", "GUAYMALLEN", "GUSTO ALDENTE", "HEROE", "INALPA", "LEDESMA", "LIVRA", "LIVRA CON GAS", "MAGNA AGUA", "MAGNA TONICA", "MARCELA", "MARIA", "MAÑANITA", "MICHEL TORINO", "NAMPE", "NEW ACME", "NYFER", "PANTHER", "PRITTY", "PRITTY CERO", "RINDEDOS", "SALDAN", "SALDAN JUGO CONCENTRADO", "SANTA JULIA", "TACCONI", "TARAGUI", "TERMA", "TERNUVA", "TRES TORRES", "VERDEFLOR", "VERIZZIA", "VIEJA MENDOZA", "VIÑAS DE BALBO"]};
+
+var D = null;
+var SUPABASE = null;
+var CHARTS = {};
+var RENDERED = {};
+
+function fN(n) { return new Intl.NumberFormat('es-AR', {style: 'currency', currency: 'ARS'}).format(n||0); }
+function fC(n) { return (n||0).toLocaleString('es-AR'); }
+function fP(v, t) { return t ? ((v/t*100)||0).toFixed(1) : '0'; }
+function fM(m) { return (m||'').substring(0, 20); }
+
+const C = ["#1a365d", "#2b6cb0", "#38b2ac", "#4299e1", "#48bb78", "#ed8936", "#ecc94b", "#f56565", "#9f7aea", "#ed64a6", "#38b2ac", "#4299e1", "#48bb78", "#ed8936"];
+
+function safe(obj) { try { return JSON.parse(JSON.stringify(obj)); } catch(e) { return obj; } }
+
+document.querySelectorAll('.tab').forEach(t => {
+  t.addEventListener('click', e => {
+    const tab = e.target.dataset.t;
+    document.querySelectorAll('.tab').forEach(x => x.classList.remove('on'));
+    document.querySelectorAll('.pane').forEach(x => x.classList.remove('on'));
+    e.target.classList.add('on');
+    document.getElementById('p-' + tab).classList.add('on');
+    if (tab !== 'upload') renderTab(tab);
+  });
+});
+
+function renderTab(tab) {
+  if (RENDERED[tab]) return;
+  if (tab === 'marcas') {
+    renderMarcas();
+  } else if (tab === 'productos') {
+    renderProductos();
+  } else if (tab === 'vendedores') {
+    renderVendedores();
+  } else if (tab === 'rutas') {
+    renderRutas();
+  } else if (tab === 'bonif') {
+    renderBonif();
+  } else if (tab === 'clientes') {
+    renderClientes();
+  }
+  RENDERED[tab] = true;
+}
+
+function renderMarcas() {
+  if (!D) return;
+  let marcas = D.marcas.slice(0, 15);
+  let ctx = document.getElementById('ch-marcas');
+  if (!ctx) return;
+
+  if (CHARTS.marcas) CHARTS.marcas.destroy();
+  CHARTS.marcas = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: marcas.map(m => m.marca),
+      datasets: [{
+        label: 'Facturación Neto + Final',
+        data: marcas.map(m => m.nf),
+        backgroundColor: C.slice(0, marcas.length),
+        borderWidth: 0
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: {display: false}},
+      scales: {x: {beginAtZero: true}}
+    }
+  });
+
+  // Share chart
+  let top10 = D.marcas.slice(0, 10);
+  let ctx2 = document.getElementById('ch-share');
+  if (ctx2) {
+    if (CHARTS.share) CHARTS.share.destroy();
+    CHARTS.share = new Chart(ctx2, {
+      type: 'doughnut',
+      data: {
+        labels: top10.map(m => m.marca),
+        datasets: [{
+          data: top10.map(m => m.unidades),
+          backgroundColor: C
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {legend: {display: false}}
+      }
+    });
+  }
+
+  // Legend
+  let leg = document.getElementById('leg-share');
+  if (leg) {
+    leg.innerHTML = top10.map((m, i) => `<div style="display:flex;align-items:center;gap:6px;margin:4px 0;font-size:11px"><span style="width:12px;height:12px;background:${C[i]};border-radius:2px"></span>${m.marca}</div>`).join('');
+  }
+
+  // Table
+  let tb = document.getElementById('tb-marcas');
+  if (tb) {
+    tb.innerHTML = D.marcas.map(m => `<tr><td>${m.marca}</td><td class="nf">${fC(m.unidades)}</td><td class="nf">${fN(m.neto)}</td><td class="nf">${fN(m.final)}</td><td class="nf">${fN(m.nf)}</td><td>${m.clientes}</td><td>${fP(m.neto, D.kpis.total_neto)}%</td></tr>`).join('');
+  }
+}
+
+function renderProductos() {
+  if (!D) return;
+  let prods = D.productos.slice(0, 15);
+  let ctx = document.getElementById('ch-prods');
+  if (!ctx) return;
+
+  if (CHARTS.prods) CHARTS.prods.destroy();
+  CHARTS.prods = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: prods.map(p => p.producto),
+      datasets: [{
+        label: 'N+F',
+        data: prods.map(p => p.nf),
+        backgroundColor: '#38b2ac',
+        borderWidth: 0
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {legend: {display: false}},
+      scales: {x: {beginAtZero: true}}
+    }
+  });
+
+  let tb = document.getElementById('tb-prods');
+  if (tb) {
+    tb.innerHTML = D.productos.map(p => `<tr><td>${p.producto}</td><td>${p.marca}</td><td class="nf">${fC(p.unidades)}</td><td class="nf">${fN(p.neto)}</td><td class="nf">${fN(p.final)}</td><td class="nf">${fN(p.nf)}</td><td>${p.clientes}</td></tr>`).join('');
+  }
+}
+
+function renderVendedores() {
+  if (!D) return;
+  let vend = D.vendedores;
+  let ctx = document.getElementById('ch-vend');
+  if (!ctx) return;
+
+  if (CHARTS.vend) CHARTS.vend.destroy();
+  CHARTS.vend = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: vend.map(v => v.nombre),
+      datasets: [{
+        label: 'Neto + Final',
+        data: vend.map(v => v.nf),
+        backgroundColor: '#2b6cb0',
+        borderWidth: 0
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {legend: {display: false}},
+      scales: {x: {beginAtZero: true}}
+    }
+  });
+
+  let tb = document.getElementById('tb-vend');
+  if (tb) {
+    tb.innerHTML = vend.map(v => `<tr><td>${v.nombre}</td><td class="nf">${fN(v.neto)}</td><td class="nf">${fN(v.final)}</td><td class="nf">${fN(v.nf)}</td><td>${fC(v.unidades)}</td><td>${v.clientes}</td><td>${v.facturas}</td><td>${fN(v.ticket)}</td></tr>`).join('');
+  }
+}
+
+function renderRutas() {
+  if (!D) return;
+  let rutas = D.rutas.slice(0, 20);
+  let ctx = document.getElementById('ch-rutas');
+  if (!ctx) return;
+
+  if (CHARTS.rutas) CHARTS.rutas.destroy();
+  CHARTS.rutas = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: rutas.map(r => r.ruta),
+      datasets: [{
+        label: 'Neto + Final',
+        data: rutas.map(r => r.nf),
+        backgroundColor: '#4299e1',
+        borderWidth: 0
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {legend: {display: false}},
+      scales: {x: {beginAtZero: true}}
+    }
+  });
+
+  let tb = document.getElementById('tb-rutas');
+  if (tb) {
+    tb.innerHTML = D.rutas.map(r => `<tr><td>${r.ruta}</td><td>${r.zona}</td><td class="nf">${fN(r.neto)}</td><td class="nf">${fN(r.final)}</td><td class="nf">${fN(r.nf)}</td><td>${fC(r.unidades)}</td><td>${r.clientes}</td></tr>`).join('');
+  }
+}
+
+function renderBonif() {
+  if (!D) return;
+
+  // Vendedor chart
+  let ctx1 = document.getElementById('ch-bv');
+  if (ctx1) {
+    if (CHARTS.bv) CHARTS.bv.destroy();
+    CHARTS.bv = new Chart(ctx1, {
+      type: 'doughnut',
+      data: {
+        labels: D.bonif_vendedor.map(b => b.nombre),
+        datasets: [{
+          data: D.bonif_vendedor.map(b => b.unid_bonif),
+          backgroundColor: C
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {legend: {display: false}}
+      }
+    });
+  }
+
+  let leg = document.getElementById('leg-bv');
+  if (leg) {
+    leg.innerHTML = D.bonif_vendedor.map((b, i) => `<div style="display:flex;align-items:center;gap:6px;margin:4px 0;font-size:10px"><span style="width:10px;height:10px;background:${C[i]};border-radius:2px"></span><strong>${b.nombre}</strong></div>`).join('');
+  }
+
+  // Marca chart
+  let marcas = D.bonif_marca.slice(0, 15);
+  let ctx2 = document.getElementById('ch-bm');
+  if (ctx2) {
+    if (CHARTS.bm) CHARTS.bm.destroy();
+    CHARTS.bm = new Chart(ctx2, {
+      type: 'bar',
+      data: {
+        labels: marcas.map(m => m.marca),
+        datasets: [{
+          label: 'Unidades Bonificadas',
+          data: marcas.map(m => m.unid_bonif),
+          backgroundColor: '#ed8936',
+          borderWidth: 0
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {legend: {display: false}},
+        scales: {x: {beginAtZero: true}}
+      }
+    });
+  }
+
+  let tb1 = document.getElementById('tb-bv');
+  if (tb1) {
+    tb1.innerHTML = D.bonif_vendedor.map(b => `<tr><td>${b.nombre}</td><td class="nf">${fC(b.unid_bonif)}</td><td class="nf">${fC(b.total_unid)}</td><td class="nf">${fP(b.unid_bonif, b.total_unid)}%</td></tr>`).join('');
+  }
+
+  let tb2 = document.getElementById('tb-bm');
+  if (tb2) {
+    tb2.innerHTML = D.bonif_marca.map(b => `<tr><td>${b.marca}</td><td class="nf">${fC(b.unid_bonif)}</td><td class="nf">${fC(b.total_unid)}</td><td class="nf">${fP(b.unid_bonif, b.total_unid)}%</td></tr>`).join('');
+  }
+}
+
+function renderClientes() {
+  if (!D) return;
+
+  // Populate marca selector
+  let sel = document.getElementById('sel-marca');
+  if (sel && D.all_marcas && D.all_marcas.length) {
+    sel.innerHTML = '<option value="">-- Seleccionar --</option>' + D.all_marcas.map(m => `<option value="${m}">${m}</option>`).join('');
+    sel.addEventListener('change', e => {
+      let marca = e.target.value;
+      let tb = document.getElementById('tb-cm');
+      if (tb) {
+        if (marca && D.clientes_x_marca[marca]) {
+          tb.innerHTML = D.clientes_x_marca[marca].slice(0, 20).map((c, i) => `<tr><td>${i+1}</td><td>${c.cliente}</td><td class="nf">${fC(c.unidades)}</td><td class="nf">${fN(c.neto)}</td><td class="nf">${fN(c.nf)}</td></tr>`).join('');
+        } else {
+          tb.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted)">Selecciona una marca</td></tr>';
+        }
+      }
+    });
+  }
+
+  let tb = document.getElementById('tb-cm');
+  if (tb) {
+    tb.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted)">Selecciona una marca</td></tr>';
+  }
+
+  let tb2 = document.getElementById('tb-tc');
+  if (tb2) {
+    tb2.innerHTML = D.top_clientes.slice(0, 30).map((c, i) => `<tr><td>${i+1}</td><td>${c.cliente}</td><td class="nf">${fN(c.neto)}</td><td class="nf">${fN(c.final)}</td><td class="nf">${fN(c.nf)}</td><td>${fC(c.unidades)}</td><td>${c.marcas}</td></tr>`).join('');
+  }
+}
+
+function init() {
+  if (!D) return;
+
+  // KPIs
+  let kpis = [
+    {label: 'Total Neto', value: fN(D.kpis.total_neto)},
+    {label: 'Total Final', value: fN(D.kpis.total_final)},
+    {label: 'Neto + Final', value: fN(D.kpis.total_nf)},
+    {label: 'Total Unidades', value: fC(D.kpis.total_unidades)},
+    {label: 'Total Clientes', value: fC(D.kpis.total_clientes)},
+    {label: 'Total Facturas', value: fC(D.kpis.total_facturas)},
+    {label: 'Ticket Promedio', value: fN(D.kpis.ticket_neto)},
+    {label: 'Productos', value: fC(D.kpis.total_productos)},
+    {label: 'Marcas', value: fC(D.kpis.total_marcas)},
+    {label: 'Vendedores', value: fC(D.kpis.total_vendedores)},
+    {label: 'Rutas', value: fC(D.kpis.total_rutas)},
+    {label: 'Bonif. %', value: fP(D.kpis.bonif_pct, 100) + '%'}
+  ];
+
+  let kpiHtml = kpis.map(k => `<div class="kpi"><small>${k.label}</small><div class="v">${k.value}</div></div>`).join('');
+  let kpisEl = document.getElementById('kpis');
+  if (kpisEl) kpisEl.innerHTML = kpiHtml;
+
+  // Resumen
+  let resEl = document.getElementById('resumen-text');
+  if (resEl) {
+    resEl.innerHTML = `Período: <strong>${document.getElementById('periodo-label').textContent}</strong><br>
+Total Facturación Neto: <strong>${fN(D.kpis.total_neto)}</strong><br>
+Total Facturación Final: <strong>${fN(D.kpis.total_final)}</strong><br>
+Total N+F: <strong>${fN(D.kpis.total_nf)}</strong><br>
+Total Unidades: <strong>${fC(D.kpis.total_unidades)}</strong><br>
+Clientes: <strong>${D.kpis.total_clientes}</strong> | Facturas: <strong>${D.kpis.total_facturas}</strong> | Marcas: <strong>${D.kpis.total_marcas}</strong><br>
+Ticket Promedio: <strong>${fN(D.kpis.ticket_neto)}</strong>`;
+  }
+
+  // Recomendaciones
+  let recsEl = document.getElementById('recs');
+  if (recsEl) {
+    let recs = [];
+    if (D.marcas && D.marcas[0]) {
+      recs.push({
+        title: 'Marca Dominante',
+        text: `${D.marcas[0].marca} lidera con ${fP(D.marcas[0].neto, D.kpis.total_neto)}% de participación en neto.`
+      });
+    }
+    if (D.bonif_pct < 10) {
+      recs.push({
+        title: 'Baja Bonificación',
+        text: 'Considera aumentar el % de bonificación para mejorar las ventas de marcas estratégicas.'
+      });
+    }
+    if (D.kpis.total_clientes > 2000) {
+      recs.push({
+        title: 'Base de Clientes',
+        text: 'Excelente base de clientes. Enfocarse en retención y cross-sell.'
+      });
+    }
+    if (D.top_clientes && D.top_clientes[0]) {
+      recs.push({
+        title: 'Cliente Top',
+        text: `${D.top_clientes[0].cliente} es el cliente principal con ${fP(D.top_clientes[0].nf, D.kpis.total_nf)}% del total.`
+      });
+    }
+    recsEl.innerHTML = recs.map(r => `<div class="rec"><strong>${r.title}</strong><p>${r.text}</p></div>`).join('');
+  }
+}
+
+function showM(m, v) { alert(`${m}\n\n${JSON.stringify(v, null, 2)}`); }
+
+// Supabase functions
+function getConfig() {
+  let url = localStorage.getItem('sb_url');
+  let key = localStorage.getItem('sb_key');
+  return {url, key};
+}
+
+function saveConfig() {
+  let url = document.getElementById('cfg-url').value.trim();
+  let key = document.getElementById('cfg-key').value.trim();
+  if (!url || !key) {
+    alert('Ingresá URL y API key');
+    return;
+  }
+  localStorage.setItem('sb_url', url);
+  localStorage.setItem('sb_key', key);
+  closeConfig();
+  connectSupabase();
+}
+
+function openConfig() {
+  let cfg = getConfig();
+  document.getElementById('cfg-url').value = cfg.url || '';
+  document.getElementById('cfg-key').value = cfg.key || '';
+  document.getElementById('modal-config').classList.add('active');
+}
+
+function closeConfig() {
+  document.getElementById('modal-config').classList.remove('active');
+}
+
+async function connectSupabase() {
+  let cfg = getConfig();
+  if (!cfg.url || !cfg.key) {
+    document.getElementById('conn-dot').classList.remove('on');
+    return;
+  }
+  try {
+    SUPABASE = window.supabase.createClient(cfg.url, cfg.key);
+    let {data, error} = await SUPABASE.from('uploads').select('id').limit(1);
+    if (error) throw error;
+
+    document.getElementById('conn-dot').classList.add('on');
+    document.getElementById('conn-status').innerHTML = '<span class="conn-dot on"></span> Conectado';
+
+    await loadPeriodos();
+    await loadHistory();
+
+    // Auto-load latest period
+    let {data: uploads} = await SUPABASE.from('uploads').select('periodo').order('created_at', {ascending: false}).limit(1);
+    if (uploads && uploads.length) {
+      document.getElementById('sel-periodo').value = uploads[0].periodo;
+      await loadFromSupabase(uploads[0].periodo);
+    }
+  } catch(e) {
+    console.error('Supabase error:', e);
+    document.getElementById('conn-dot').classList.remove('on');
+  }
+}
+
+async function loadPeriodos() {
+  if (!SUPABASE) return;
+  try {
+    let {data} = await SUPABASE.from('uploads').select('periodo').order('created_at', {ascending: false}).limit(100);
+    let periodos = [...new Set(data.map(d => d.periodo))];
+    let sel = document.getElementById('sel-periodo');
+    sel.innerHTML = '<option value="">-- Período --</option>' + periodos.map(p => `<option value="${p}">${p}</option>`).join('');
+    sel.addEventListener('change', e => {
+      if (e.target.value) loadFromSupabase(e.target.value);
+    });
+  } catch(e) {
+    console.error('Error loading periods:', e);
+  }
+}
+
+async function loadFromSupabase(periodo) {
+  if (!SUPABASE || !periodo) return;
+  try {
+    // Mock aggregation - in real implementation, fetch from views
+    let {data: marcas} = await SUPABASE.from('v_marcas').select('*').eq('periodo', periodo);
+    let {data: productos} = await SUPABASE.from('v_productos').select('*').eq('periodo', periodo);
+    let {data: vendedores} = await SUPABASE.from('v_vendedores').select('*').eq('periodo', periodo);
+    let {data: rutas} = await SUPABASE.from('v_rutas').select('*').eq('periodo', periodo);
+    let {data: bonif_v} = await SUPABASE.from('v_bonif_vendedor').select('*').eq('periodo', periodo);
+    let {data: bonif_m} = await SUPABASE.from('v_bonif_marca').select('*').eq('periodo', periodo);
+    let {data: clientes} = await SUPABASE.from('v_clientes').select('*').eq('periodo', periodo);
+    let {data: cm} = await SUPABASE.from('v_clientes_marca').select('*').eq('periodo', periodo);
+
+    if (marcas && marcas.length) {
+      D = {
+        kpis: {
+          total_neto: marcas.reduce((sum, m) => sum + (m.neto || 0), 0),
+          total_final: marcas.reduce((sum, m) => sum + (m.final || 0), 0),
+          total_nf: marcas.reduce((sum, m) => sum + ((m.neto || 0) + (m.final || 0)), 0),
+          total_unidades: marcas.reduce((sum, m) => sum + (m.unidades || 0), 0),
+          total_clientes: new Set(clientes?.map(c => c.cliente) || []).size,
+          total_facturas: productos?.reduce((sum, p) => sum + (p.facturas || 0), 0) || 0,
+          ticket_neto: 0,
+          total_productos: new Set(productos?.map(p => p.producto) || []).size,
+          total_marcas: marcas.length,
+          total_vendedores: vendedores?.length || 0,
+          total_rutas: rutas?.length || 0,
+          bonif_pct: bonif_m?.length ? (bonif_m[0].pct || 6.5) : 6.5
+        },
+        marcas: marcas || [],
+        productos: productos || [],
+        vendedores: vendedores || [],
+        rutas: rutas || [],
+        bonif_vendedor: bonif_v || [],
+        bonif_marca: bonif_m || [],
+        top_clientes: clientes || [],
+        clientes_x_marca: cm ? cm.reduce((acc, c) => {
+          if (!acc[c.marca]) acc[c.marca] = [];
+          acc[c.marca].push(c);
+          return acc;
+        }, {}) : {},
+        all_marcas: marcas.map(m => m.marca)
+      };
+      document.getElementById('periodo-label').textContent = '— ' + periodo;
+      init();
+      renderTab('marcas');
+    }
+  } catch(e) {
+    console.error('Error loading data from Supabase:', e);
+  }
+}
+
+async function loadHistory() {
+  if (!SUPABASE) return;
+  try {
+    let {data} = await SUPABASE.from('uploads').select('*').order('created_at', {ascending: false}).limit(50);
+    let tb = document.getElementById('tb-history');
+    if (tb && data && data.length) {
+      tb.innerHTML = data.map(u => `<tr>
+<td>${u.periodo || '-'}</td>
+<td>${u.filename || '-'}</td>
+<td>${u.row_count || 0}</td>
+<td>${new Date(u.created_at).toLocaleDateString('es-AR')}</td>
+<td><span class="badge badge-ok">✓ Cargado</span></td>
+</tr>`).join('');
+    }
+  } catch(e) {
+    console.error('Error loading history:', e);
+  }
+}
+
+function setupDropzone() {
+  let dz = document.getElementById('dropzone');
+  let fi = document.getElementById('file-input');
+
+  dz.addEventListener('click', () => fi.click());
+
+  dz.addEventListener('dragover', e => {
+    e.preventDefault();
+    dz.classList.add('dragover');
+  });
+
+  dz.addEventListener('dragleave', () => {
+    dz.classList.remove('dragover');
+  });
+
+  dz.addEventListener('drop', e => {
+    e.preventDefault();
+    dz.classList.remove('dragover');
+    if (e.dataTransfer.files.length) {
+      handleFile(e.dataTransfer.files[0]);
+    }
+  });
+
+  fi.addEventListener('change', e => {
+    if (e.target.files.length) {
+      handleFile(e.target.files[0]);
+    }
+  });
+}
+
+function handleFile(file) {
+  if (!file.name.match(/\.(xls|xlsx)$/)) {
+    alert('Solo archivos Excel (.xls, .xlsx)');
+    return;
+  }
+
+  let reader = new FileReader();
+  reader.onload = async e => {
+    try {
+      let arr = new Uint8Array(e.target.result);
+      let wb = XLSX.read(arr, {type: 'array'});
+      let ws = wb.Sheets[wb.SheetNames[0]];
+      let rows = XLSX.utils.sheet_to_json(ws);
+
+      if (!rows.length) {
+        alert('Archivo vacío');
+        return;
+      }
+
+      // Extract period from first row
+      let periodo = rows[0]['Periodos'] || 'ENE 2026';
+      if (periodo.includes('ENE')) periodo = 'ENE 2026';
+      else if (periodo.includes('FEB')) periodo = 'FEB 2026';
+      // ... etc
+
+      document.getElementById('upload-progress').classList.add('active');
+      document.getElementById('upload-filename').textContent = file.name;
+      document.getElementById('upload-log').innerHTML = '';
+
+      if (SUPABASE) {
+        await uploadToSupabase(rows, periodo, file.name);
+      } else {
+        alert('Conecta Supabase primero');
+      }
+    } catch(err) {
+      alert('Error leyendo archivo: ' + err.message);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+async function uploadToSupabase(rows, periodo, filename) {
+  if (!SUPABASE) return;
+
+  try {
+    // Create upload record
+    let {data: upRecord} = await SUPABASE.from('uploads').insert({
+      periodo,
+      filename,
+      row_count: rows.length,
+      status: 'processing'
+    }).select().single();
+
+    log(`Iniciando carga de ${rows.length} filas...`, 'info');
+
+    // Upload in batches
+    let batchSize = 500;
+    for (let i = 0; i < rows.length; i += batchSize) {
+      let batch = rows.slice(i, i + batchSize);
+      let pct = Math.round((i / rows.length) * 100);
+
+      document.getElementById('progress-fill').style.width = pct + '%';
+      document.getElementById('upload-pct').textContent = pct + '%';
+      document.getElementById('upload-status').textContent = `Subiendo lote ${Math.floor(i/batchSize)+1}...`;
+
+      // Transform batch
+      let batchData = batch.map(row => ({
+        upload_id: upRecord.id,
+        periodo,
+        cliente: row['Clientes'],
+        ruta: row['Ruta'],
+        zona: row['Descripción'] || row['Descripción Ruta'],
+        vendedor: row['Vendedor'],
+        vendedor_nombre: row['Descripción Vendedor'] || row['Vendedor'],
+        producto_codigo: row['Código'],
+        producto_nombre: row['Descripción.1'] || row['Descripción Producto'],
+        marca_id: row['Marca'],
+        marca_nombre: row['Descripción.2'] || row['Descripción Marca'],
+        precio: parseFloat(row['Precio']) || 0,
+        bonificacion: row['Bonific'] === 'S' ? 1 : 0,
+        precio_neto: parseFloat(row['Pr Neto']) || 0,
+        cantidades: parseFloat(row['Cantidades Totales']) || 0,
+        pesos_totales: parseFloat(row['Pesos Totales']) || 0,
+        importes_netos: parseFloat(row['Importes Netos']) || 0,
+        importes_finales: parseFloat(row['Importes Finales']) || 0,
+        cantidad_facturas: parseInt(row['Cantidad de Facturas']) || 0
+      }));
+
+      let {error} = await SUPABASE.from('ventas').insert(batchData);
+      if (error) {
+        log(`Error en lote ${Math.floor(i/batchSize)+1}: ${error.message}`, 'err');
+      } else {
+        log(`Lote ${Math.floor(i/batchSize)+1} cargado correctamente`, 'ok');
+      }
+    }
+
+    document.getElementById('progress-fill').style.width = '100%';
+    document.getElementById('upload-pct').textContent = '100%';
+    document.getElementById('upload-status').textContent = 'Carga completada';
+    log('Archivo cargado exitosamente', 'ok');
+
+    // Reload data
+    await loadFromSupabase(periodo);
+    await loadHistory();
+
+  } catch(e) {
+    log('Error: ' + e.message, 'err');
+  }
+}
+
+function log(msg, type) {
+  let logEl = document.getElementById('upload-log');
+  if (logEl) {
+    let span = document.createElement('div');
+    span.className = type;
+    span.textContent = '[' + new Date().toLocaleTimeString() + '] ' + msg;
+    logEl.appendChild(span);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+}
+
+window.addEventListener('load', async function() {
+  setupDropzone();
+  D = FALLBACK;
+  init();
+  connectSupabase();
+});
+</script>
+
+</body>
+</html>
