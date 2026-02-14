@@ -750,9 +750,9 @@ async function loadFromSupabase(periodo) {
     };
 
     // Reset charts for re-rendering
-    for (let k in charts) { try { charts[k].destroy(); } catch(e) {} }
-    charts = {};
-    rendered = {};
+    for (let k in CHARTS) { try { CHARTS[k].destroy(); } catch(e) {} }
+    CHARTS = {};
+    RENDERED = {};
 
     document.getElementById('periodo-label').textContent = '\u2014 ' + periodo;
     init();
