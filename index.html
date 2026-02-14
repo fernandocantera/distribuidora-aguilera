@@ -635,11 +635,13 @@ async function connectSupabase() {
     await loadPeriodos();
     await loadHistory();
 
-    // Auto-load latest period
+    // Auto-load latest period (only if data exists)
     let {data: uploads} = await SUPABASE.from('uploads').select('periodo').order('fecha_carga', {ascending: false}).limit(1);
-    if (uploads && uploads.length) {
+    if (uploads && uploads.length && uploads[0].periodo) {
       document.getElementById('sel-periodo').value = uploads[0].periodo;
       await loadFromSupabase(uploads[0].periodo);
+    } else {
+      console.log('Base de datos vacía. Subí un archivo Excel para comenzar.');
     }
   } catch(e) {
     console.error('Supabase error:', e);
@@ -650,7 +652,9 @@ async function connectSupabase() {
 async function loadPeriodos() {
   if (!SUPABASE) return;
   try {
-    let {data} = await SUPABASE.from('uploads').select('periodo').order('fecha_carga', {ascending: false}).limit(100);
+    let {data, error} = await SUPABASE.from('uploads').select('periodo').order('fecha_carga', {ascending: false}).limit(100);
+    if (error) { console.error('Error loading periods:', error); return; }
+    if (!data || !data.length) { console.log('No hay períodos cargados aún'); return; }
     let periodos = [...new Set(data.map(d => d.periodo))];
     let sel = document.getElementById('sel-periodo');
     sel.innerHTML = '<option value="">-- Período --</option>' + periodos.map(p => `<option value="${p}">${p}</option>`).join('');
@@ -665,50 +669,93 @@ async function loadPeriodos() {
 async function loadFromSupabase(periodo) {
   if (!SUPABASE || !periodo) return;
   try {
-    // Mock aggregation - in real implementation, fetch from views
-    let {data: marcas} = await SUPABASE.from('v_marcas').select('*').eq('periodo', periodo);
-    let {data: productos} = await SUPABASE.from('v_productos').select('*').eq('periodo', periodo);
-    let {data: vendedores} = await SUPABASE.from('v_vendedores').select('*').eq('periodo', periodo);
-    let {data: rutas} = await SUPABASE.from('v_rutas').select('*').eq('periodo', periodo);
-    let {data: bonif_v} = await SUPABASE.from('v_bonif_vendedor').select('*').eq('periodo', periodo);
-    let {data: bonif_m} = await SUPABASE.from('v_bonif_marca').select('*').eq('periodo', periodo);
-    let {data: clientes} = await SUPABASE.from('v_clientes').select('*').eq('periodo', periodo);
-    let {data: cm} = await SUPABASE.from('v_clientes_marca').select('*').eq('periodo', periodo);
+    console.log('Cargando datos para período:', periodo);
 
-    if (marcas && marcas.length) {
-      D = {
-        kpis: {
-          total_neto: marcas.reduce((sum, m) => sum + (m.neto || 0), 0),
-          total_final: marcas.reduce((sum, m) => sum + (m.final || 0), 0),
-          total_nf: marcas.reduce((sum, m) => sum + ((m.neto || 0) + (m.final || 0)), 0),
-          total_unidades: marcas.reduce((sum, m) => sum + (m.unidades || 0), 0),
-          total_clientes: new Set(clientes?.map(c => c.cliente) || []).size,
-          total_facturas: productos?.reduce((sum, p) => sum + (p.facturas || 0), 0) || 0,
-          ticket_neto: 0,
-          total_productos: new Set(productos?.map(p => p.producto) || []).size,
-          total_marcas: marcas.length,
-          total_vendedores: vendedores?.length || 0,
-          total_rutas: rutas?.length || 0,
-          bonif_pct: bonif_m?.length ? (bonif_m[0].pct || 6.5) : 6.5
-        },
-        marcas: marcas || [],
-        productos: productos || [],
-        vendedores: vendedores || [],
-        rutas: rutas || [],
-        bonif_vendedor: bonif_v || [],
-        bonif_marca: bonif_m || [],
-        top_clientes: clientes || [],
-        clientes_x_marca: cm ? cm.reduce((acc, c) => {
-          if (!acc[c.marca]) acc[c.marca] = [];
-          acc[c.marca].push(c);
-          return acc;
-        }, {}) : {},
-        all_marcas: marcas.map(m => m.marca)
-      };
-      document.getElementById('periodo-label').textContent = '— ' + periodo;
-      init();
-      renderTab('marcas');
+    // Fetch all views in parallel
+    let [rKpis, rMarcas, rProductos, rVendedores, rRutas, rBonifV, rBonifM, rClientes, rCM] = await Promise.all([
+      SUPABASE.from('v_kpis').select('*').eq('periodo', periodo).single(),
+      SUPABASE.from('v_marcas').select('*').eq('periodo', periodo),
+      SUPABASE.from('v_productos').select('*').eq('periodo', periodo),
+      SUPABASE.from('v_vendedores').select('*').eq('periodo', periodo),
+      SUPABASE.from('v_rutas').select('*').eq('periodo', periodo),
+      SUPABASE.from('v_bonif_vendedor').select('*').eq('periodo', periodo),
+      SUPABASE.from('v_bonif_marca').select('*').eq('periodo', periodo),
+      SUPABASE.from('v_top_clientes').select('*').eq('periodo', periodo),
+      SUPABASE.from('v_clientes_marca').select('*').eq('periodo', periodo)
+    ]);
+
+    let kpis = rKpis.data;
+    let marcas = rMarcas.data || [];
+    let productos = rProductos.data || [];
+    let vendedores = rVendedores.data || [];
+    let rutas = rRutas.data || [];
+    let bonif_v = rBonifV.data || [];
+    let bonif_m = rBonifM.data || [];
+    let clientes = rClientes.data || [];
+    let cm = rCM.data || [];
+
+    // Log any errors
+    [rKpis, rMarcas, rProductos, rVendedores, rRutas, rBonifV, rBonifM, rClientes, rCM].forEach((r, i) => {
+      if (r.error) console.error('View error #' + i + ':', r.error.message);
+    });
+
+    if (!kpis && !marcas.length) {
+      console.warn('No se encontraron datos para el período:', periodo);
+      return;
     }
+
+    // Build D object from views
+    D = {
+      kpis: kpis ? {
+        total_neto: parseFloat(kpis.total_neto) || 0,
+        total_final: parseFloat(kpis.total_final) || 0,
+        total_nf: parseFloat(kpis.total_nf) || 0,
+        total_unidades: parseFloat(kpis.total_unidades) || 0,
+        total_clientes: parseInt(kpis.total_clientes) || 0,
+        total_facturas: parseInt(kpis.total_facturas) || 0,
+        ticket_neto: parseFloat(kpis.ticket_neto) || 0,
+        total_productos: parseInt(kpis.total_productos) || 0,
+        total_marcas: parseInt(kpis.total_marcas) || 0,
+        total_vendedores: parseInt(kpis.total_vendedores) || 0,
+        total_rutas: parseInt(kpis.total_rutas) || 0,
+        bonif_pct: parseFloat(kpis.bonif_pct) || 0
+      } : {
+        total_neto: marcas.reduce((s, m) => s + parseFloat(m.neto || 0), 0),
+        total_final: marcas.reduce((s, m) => s + parseFloat(m.final || 0), 0),
+        total_nf: marcas.reduce((s, m) => s + parseFloat(m.nf || 0), 0),
+        total_unidades: marcas.reduce((s, m) => s + parseFloat(m.unidades || 0), 0),
+        total_clientes: clientes.length,
+        total_facturas: vendedores.reduce((s, v) => s + parseInt(v.facturas || 0), 0),
+        ticket_neto: 0,
+        total_productos: productos.length,
+        total_marcas: marcas.length,
+        total_vendedores: vendedores.length,
+        total_rutas: rutas.length,
+        bonif_pct: bonif_v.length ? parseFloat(bonif_v[0].pct || 0) : 0
+      },
+      marcas: marcas.map(m => ({marca: m.marca, unidades: parseFloat(m.unidades)||0, neto: parseFloat(m.neto)||0, final: parseFloat(m.final)||0, nf: parseFloat(m.nf)||0, clientes: parseInt(m.clientes)||0, pct: parseFloat(m.pct)||0})),
+      productos: productos.map(p => ({producto: p.producto, marca: p.marca, unidades: parseFloat(p.unidades)||0, neto: parseFloat(p.neto)||0, final: parseFloat(p.final)||0, nf: parseFloat(p.nf)||0, clientes: parseInt(p.clientes)||0})),
+      vendedores: vendedores.map(v => ({vendedor_full: v.vendedor_full, nombre: v.nombre, neto: parseFloat(v.neto)||0, final: parseFloat(v.final)||0, nf: parseFloat(v.nf)||0, unidades: parseFloat(v.unidades)||0, clientes: parseInt(v.clientes)||0, facturas: parseInt(v.facturas)||0, rutas: parseInt(v.rutas)||0, ticket: parseFloat(v.ticket)||0})),
+      rutas: rutas.map(r => ({ruta: r.ruta, zona: r.zona, neto: parseFloat(r.neto)||0, final: parseFloat(r.final)||0, nf: parseFloat(r.nf)||0, unidades: parseFloat(r.unidades)||0, clientes: parseInt(r.clientes)||0, facturas: parseInt(r.facturas)||0, neto_x_cli: parseFloat(r.neto_x_cli)||0})),
+      bonif_vendedor: bonif_v.map(b => ({nombre: b.nombre, unid_bonif: parseFloat(b.unid_bonif)||0, total_unid: parseFloat(b.total_unid)||0, pct: parseFloat(b.pct)||0})),
+      bonif_marca: bonif_m.map(b => ({marca: b.marca, unid_bonif: parseFloat(b.unid_bonif)||0, total_unid: parseFloat(b.total_unid)||0, pct: parseFloat(b.pct)||0})),
+      top_clientes: clientes.map((c, i) => ({cliente: c.cliente, neto: parseFloat(c.neto)||0, final: parseFloat(c.final)||0, nf: parseFloat(c.nf)||0, unidades: parseFloat(c.unidades)||0, facturas: parseInt(c.facturas)||0, marcas: parseInt(c.marcas)||0, productos: parseInt(c.productos)||0})),
+      clientes_x_marca: cm.reduce((acc, c) => {
+        let marca = c.marca;
+        if (!acc[marca]) acc[marca] = [];
+        acc[marca].push({cliente: c.cliente, unidades: parseFloat(c.unidades)||0, neto: parseFloat(c.neto)||0, nf: parseFloat(c.nf)||0});
+        return acc;
+      }, {}),
+      all_marcas: marcas.map(m => m.marca)
+    };
+
+    // Reset charts for re-rendering
+    for (let k in charts) { try { charts[k].destroy(); } catch(e) {} }
+    charts = {};
+    rendered = {};
+
+    document.getElementById('periodo-label').textContent = '\u2014 ' + periodo;
+    init();
   } catch(e) {
     console.error('Error loading data from Supabase:', e);
   }
