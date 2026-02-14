@@ -636,7 +636,7 @@ async function connectSupabase() {
     await loadHistory();
 
     // Auto-load latest period
-    let {data: uploads} = await SUPABASE.from('uploads').select('periodo').order('created_at', {ascending: false}).limit(1);
+    let {data: uploads} = await SUPABASE.from('uploads').select('periodo').order('fecha_carga', {ascending: false}).limit(1);
     if (uploads && uploads.length) {
       document.getElementById('sel-periodo').value = uploads[0].periodo;
       await loadFromSupabase(uploads[0].periodo);
@@ -650,7 +650,7 @@ async function connectSupabase() {
 async function loadPeriodos() {
   if (!SUPABASE) return;
   try {
-    let {data} = await SUPABASE.from('uploads').select('periodo').order('created_at', {ascending: false}).limit(100);
+    let {data} = await SUPABASE.from('uploads').select('periodo').order('fecha_carga', {ascending: false}).limit(100);
     let periodos = [...new Set(data.map(d => d.periodo))];
     let sel = document.getElementById('sel-periodo');
     sel.innerHTML = '<option value="">-- Período --</option>' + periodos.map(p => `<option value="${p}">${p}</option>`).join('');
@@ -717,14 +717,14 @@ async function loadFromSupabase(periodo) {
 async function loadHistory() {
   if (!SUPABASE) return;
   try {
-    let {data} = await SUPABASE.from('uploads').select('*').order('created_at', {ascending: false}).limit(50);
+    let {data} = await SUPABASE.from('uploads').select('*').order('fecha_carga', {ascending: false}).limit(50);
     let tb = document.getElementById('tb-history');
     if (tb && data && data.length) {
       tb.innerHTML = data.map(u => `<tr>
 <td>${u.periodo || '-'}</td>
-<td>${u.filename || '-'}</td>
-<td>${u.row_count || 0}</td>
-<td>${new Date(u.created_at).toLocaleDateString('es-AR')}</td>
+<td>${u.nombre_archivo || '-'}</td>
+<td>${u.total_filas || 0}</td>
+<td>${new Date(u.fecha_carga).toLocaleDateString('es-AR')}</td>
 <td><span class="badge badge-ok">✓ Cargado</span></td>
 </tr>`).join('');
     }
@@ -775,18 +775,49 @@ function handleFile(file) {
       let arr = new Uint8Array(e.target.result);
       let wb = XLSX.read(arr, {type: 'array'});
       let ws = wb.Sheets[wb.SheetNames[0]];
-      let rows = XLSX.utils.sheet_to_json(ws);
+      // Read as array of arrays to handle duplicate column names
+      let rawRows = XLSX.utils.sheet_to_json(ws, {header: 1});
+      if (rawRows.length < 2) { alert('Archivo vacío'); return; }
 
-      if (!rows.length) {
-        alert('Archivo vacío');
-        return;
+      // Map by column position (skip header row)
+      // 0:Periodos, 1:Clientes, 2:Tel, 3:Ruta, 4:Descripción(zona), 5:Domicilio,
+      // 6:Vendedor, 7:Desc Vendedor, 8:Código, 9:Descripción(producto),
+      // 10:Marca, 11:Descripción(marca), 12:Precio, 13:Bonific, 14:Pr Neto,
+      // 15:Cant Tot, 16:Pesos Tot, 17:Imp Netos, 18:Imp Finales,
+      // 19:Cant Facturas, 20:Bultos Prom, 21:Cant Combos
+      let rows = [];
+      for (let i = 1; i < rawRows.length; i++) {
+        let r = rawRows[i];
+        if (!r || !r[0]) continue; // skip empty rows
+        rows.push({
+          periodo_raw: r[0] || '',
+          cliente: r[1] || '',
+          ruta: r[3],
+          zona: r[4] || '',
+          vendedor: r[6],
+          vendedor_nombre: r[7] || '',
+          producto_codigo: r[8],
+          producto_nombre: r[9] || '',
+          marca_id: r[10],
+          marca_nombre: r[11] || '',
+          precio: parseFloat(r[12]) || 0,
+          bonificacion: parseFloat(r[13]) || 0,
+          precio_neto: parseFloat(r[14]) || 0,
+          cantidades: parseFloat(r[15]) || 0,
+          pesos_totales: parseFloat(r[16]) || 0,
+          importes_netos: parseFloat(r[17]) || 0,
+          importes_finales: parseFloat(r[18]) || 0,
+          cantidad_facturas: parseInt(r[19]) || 0,
+          bultos_promedio: parseFloat(r[20]) || 0,
+          cantidades_combos: parseFloat(r[21]) || 0
+        });
       }
 
-      // Extract period from first row
-      let periodo = rows[0]['Periodos'] || 'ENE 2026';
-      if (periodo.includes('ENE')) periodo = 'ENE 2026';
-      else if (periodo.includes('FEB')) periodo = 'FEB 2026';
-      // ... etc
+      if (!rows.length) { alert('Archivo vacío'); return; }
+
+      // Extract period: "(001) ENE 2026" → "ENE 2026"
+      let periodoRaw = String(rows[0].periodo_raw);
+      let periodo = periodoRaw.replace(/^\(\d+\)\s*/, '').trim() || 'SIN PERIODO';
 
       document.getElementById('upload-progress').classList.add('active');
       document.getElementById('upload-filename').textContent = file.name;
@@ -809,12 +840,16 @@ async function uploadToSupabase(rows, periodo, filename) {
 
   try {
     // Create upload record
-    let {data: upRecord} = await SUPABASE.from('uploads').insert({
-      periodo,
-      filename,
-      row_count: rows.length,
-      status: 'processing'
+    let {data: upRecord, error: upErr} = await SUPABASE.from('uploads').insert({
+      periodo: periodo,
+      nombre_archivo: filename,
+      total_filas: rows.length
     }).select().single();
+
+    if (upErr || !upRecord) {
+      log('Error creando registro de upload: ' + (upErr ? upErr.message : 'sin respuesta'), 'err');
+      return;
+    }
 
     log(`Iniciando carga de ${rows.length} filas...`, 'info');
 
@@ -829,26 +864,29 @@ async function uploadToSupabase(rows, periodo, filename) {
       document.getElementById('upload-status').textContent = `Subiendo lote ${Math.floor(i/batchSize)+1}...`;
 
       // Transform batch
+      // rows already have correct field names from handleFile mapping
       let batchData = batch.map(row => ({
         upload_id: upRecord.id,
         periodo,
-        cliente: row['Clientes'],
-        ruta: row['Ruta'],
-        zona: row['Descripción'] || row['Descripción Ruta'],
-        vendedor: row['Vendedor'],
-        vendedor_nombre: row['Descripción Vendedor'] || row['Vendedor'],
-        producto_codigo: row['Código'],
-        producto_nombre: row['Descripción.1'] || row['Descripción Producto'],
-        marca_id: row['Marca'],
-        marca_nombre: row['Descripción.2'] || row['Descripción Marca'],
-        precio: parseFloat(row['Precio']) || 0,
-        bonificacion: row['Bonific'] === 'S' ? 1 : 0,
-        precio_neto: parseFloat(row['Pr Neto']) || 0,
-        cantidades: parseFloat(row['Cantidades Totales']) || 0,
-        pesos_totales: parseFloat(row['Pesos Totales']) || 0,
-        importes_netos: parseFloat(row['Importes Netos']) || 0,
-        importes_finales: parseFloat(row['Importes Finales']) || 0,
-        cantidad_facturas: parseInt(row['Cantidad de Facturas']) || 0
+        cliente: row.cliente,
+        ruta: row.ruta,
+        zona: row.zona,
+        vendedor: row.vendedor,
+        vendedor_nombre: row.vendedor_nombre,
+        producto_codigo: row.producto_codigo,
+        producto_nombre: row.producto_nombre,
+        marca_id: row.marca_id,
+        marca_nombre: row.marca_nombre,
+        precio: row.precio,
+        bonificacion: row.bonificacion,
+        precio_neto: row.precio_neto,
+        cantidades: row.cantidades,
+        pesos_totales: row.pesos_totales,
+        importes_netos: row.importes_netos,
+        importes_finales: row.importes_finales,
+        cantidad_facturas: row.cantidad_facturas,
+        bultos_promedio: row.bultos_promedio,
+        cantidades_combos: row.cantidades_combos
       }));
 
       let {error} = await SUPABASE.from('ventas').insert(batchData);
