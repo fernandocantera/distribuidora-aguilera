@@ -590,6 +590,20 @@ function generateRecommendations() {
   return recs.length ? recs : [{icon:'📊', title:'Datos cargados', text:'Se detectaron ' + fN(k.total_unidades) + ' unidades vendidas a ' + fN(k.total_clientes) + ' clientes. Cargá más meses para análisis comparativo.'}];
 }
 
+function handleMarcaChange(e) {
+  let marca = e.target.value;
+  let tb = document.getElementById('tb-cm');
+  if (tb) {
+    if (marca && D && D.clientes_x_marca && D.clientes_x_marca[marca]) {
+      tb.innerHTML = D.clientes_x_marca[marca].slice(0, 20).map((c, i) => `<tr><td>${i+1}</td><td>${c.cliente}</td><td class="nf">${fC(c.unidades)}</td><td class="nf">${fN(c.neto)}</td><td class="nf">${fN(c.nf)}</td></tr>`).join('');
+    } else {
+      tb.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted)">Selecciona una marca</td></tr>';
+    }
+  }
+}
+
+var marcaListenerAdded = false;
+
 function renderClientes() {
   if (!D) return;
 
@@ -597,17 +611,10 @@ function renderClientes() {
   let sel = document.getElementById('sel-marca');
   if (sel && D.all_marcas && D.all_marcas.length) {
     sel.innerHTML = '<option value="">-- Seleccionar --</option>' + D.all_marcas.map(m => `<option value="${m}">${m}</option>`).join('');
-    sel.addEventListener('change', e => {
-      let marca = e.target.value;
-      let tb = document.getElementById('tb-cm');
-      if (tb) {
-        if (marca && D.clientes_x_marca[marca]) {
-          tb.innerHTML = D.clientes_x_marca[marca].slice(0, 20).map((c, i) => `<tr><td>${i+1}</td><td>${c.cliente}</td><td class="nf">${fC(c.unidades)}</td><td class="nf">${fN(c.neto)}</td><td class="nf">${fN(c.nf)}</td></tr>`).join('');
-        } else {
-          tb.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted)">Selecciona una marca</td></tr>';
-        }
-      }
-    });
+    if (!marcaListenerAdded) {
+      sel.addEventListener('change', handleMarcaChange);
+      marcaListenerAdded = true;
+    }
   }
 
   let tb = document.getElementById('tb-cm');
@@ -839,6 +846,15 @@ async function loadFromSupabase(periodo) {
 
     document.getElementById('periodo-label').textContent = '\u2014 ' + periodo;
     init();
+
+    // Force re-render the currently active tab's charts and tables
+    let activeTab = document.querySelector('.tab.on');
+    if (activeTab) {
+      let tab = activeTab.dataset.t;
+      if (tab && tab !== 'upload' && tab !== 'resumen') {
+        renderTab(tab);
+      }
+    }
   } catch(e) {
     console.error('Error loading data from Supabase:', e);
   }
