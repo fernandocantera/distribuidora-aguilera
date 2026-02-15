@@ -6,7 +6,7 @@
 <title>Distribuidora Aguilera - Dashboard</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{--pri:#1a365d;--sec:#2b6cb0;--acc:#38b2ac;--ok:#48bb78;--warn:#ecc94b;--bad:#f56565;--bg:#f7fafc;--txt:#2d3748;--muted:#718096;--brd:#e2e8f0}
@@ -1072,143 +1072,208 @@ function log(msg, type) {
 
 function downloadExcel() {
   if (!D || !D.kpis) { alert('No hay datos cargados para exportar.'); return; }
+  var periodo = document.getElementById('sel-periodo')?.value || 'Enero 2026';
+  var wb = XLSX.utils.book_new();
 
-  let periodo = document.getElementById('sel-periodo')?.value || 'Enero 2026';
-  let wb = XLSX.utils.book_new();
+  // Style constants
+  var bdr = {top:{style:'thin',color:{rgb:'CBD5E0'}},bottom:{style:'thin',color:{rgb:'CBD5E0'}},left:{style:'thin',color:{rgb:'CBD5E0'}},right:{style:'thin',color:{rgb:'CBD5E0'}}};
+  var sTitle = {font:{name:'Arial',sz:20,bold:true,color:{rgb:'1A365D'}},alignment:{horizontal:'center',vertical:'center'}};
+  var sSub = {font:{name:'Arial',sz:13,color:{rgb:'2B6CB0'}},alignment:{horizontal:'center',vertical:'center'}};
+  var sSection = {font:{name:'Arial',sz:12,bold:true,color:{rgb:'1A365D'}}};
+  var sHdr = {font:{name:'Arial',sz:10,bold:true,color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:'1A365D'}},alignment:{horizontal:'center',vertical:'center'},border:bdr};
+  var sLbl = {font:{name:'Arial',sz:10,color:{rgb:'4A5568'}},fill:{fgColor:{rgb:'E2E8F0'}},alignment:{horizontal:'right',vertical:'center'},border:bdr};
+  var sVal = {font:{name:'Arial',sz:13,bold:true,color:{rgb:'2B6CB0'}},alignment:{horizontal:'center',vertical:'center'},border:bdr};
+  var sValCur = {font:{name:'Arial',sz:13,bold:true,color:{rgb:'2B6CB0'}},alignment:{horizontal:'center',vertical:'center'},border:bdr,numFmt:'$#,##0'};
+  var sValNum = {font:{name:'Arial',sz:13,bold:true,color:{rgb:'2B6CB0'}},alignment:{horizontal:'center',vertical:'center'},border:bdr,numFmt:'#,##0'};
+  var sValPct = {font:{name:'Arial',sz:13,bold:true,color:{rgb:'2B6CB0'}},alignment:{horizontal:'center',vertical:'center'},border:bdr,numFmt:'0.0'};
 
-  // --- Helper: style-aware header row ---
-  function addSheet(name, headers, rows, colWidths) {
-    let aoa = [headers, ...rows];
-    let ws = XLSX.utils.aoa_to_sheet(aoa);
-    if (colWidths) ws['!cols'] = colWidths.map(w => ({wch: w}));
-    XLSX.utils.book_append_sheet(wb, ws, name);
+  function dCell(val, isEven, type, isNF) {
+    var s = {font:{name:'Arial',sz:10},border:bdr,alignment:{}};
+    if (isEven) s.fill = {fgColor:{rgb:'EDF2F7'}};
+    if (isNF) { s.font = {name:'Arial',sz:10,bold:true,color:{rgb:'2B6CB0'}}; s.fill = {fgColor:{rgb:'E6FFFA'}}; }
+    if (type === 'cur') { s.alignment.horizontal = 'right'; s.alignment.vertical = 'center'; s.numFmt = '$#,##0'; }
+    else if (type === 'num') { s.alignment.horizontal = 'right'; s.alignment.vertical = 'center'; s.numFmt = '#,##0'; }
+    else if (type === 'pct') { s.alignment.horizontal = 'right'; s.alignment.vertical = 'center'; s.numFmt = '0.0%'; }
+    else if (type === 'txt') { s.alignment.horizontal = 'left'; s.alignment.vertical = 'center'; }
+    else { s.alignment.horizontal = 'right'; s.alignment.vertical = 'center'; }
+    return {v: val, t: (typeof val === 'number' ? 'n' : 's'), s: s};
   }
 
-  // --- 1. RESUMEN / KPIs ---
-  let k = D.kpis;
-  let resumen = [
-    ['Distribuidora Aguilera - Reporte Analítico'],
-    ['Período:', periodo],
-    [],
-    ['INDICADORES CLAVE DE PERFORMANCE (KPIs)'],
-    [],
-    ['Indicador', 'Valor'],
-    ['Total Facturación Neto', k.total_neto],
-    ['Total Facturación Final', k.total_final],
-    ['Total Neto + Final', k.total_nf],
-    ['Total Unidades', k.total_unidades],
-    ['Total Clientes', k.total_clientes],
-    ['Total Facturas', k.total_facturas],
-    ['Ticket Promedio Neto', k.ticket_neto],
-    ['Total Productos', k.total_productos],
-    ['Total Marcas', k.total_marcas],
-    ['Total Vendedores', k.total_vendedores],
-    ['Total Rutas', k.total_rutas],
-    ['Bonificación %', k.bonif_pct / 100],
-    [],
-    ['RECOMENDACIONES'],
-    []
-  ];
-  let recs = generateRecommendations();
-  recs.forEach(r => resumen.push([r.icon + ' ' + r.title, r.text]));
+  // --- SHEET 1: Resumen Ejecutivo ---
+  var ws1 = {};
+  var k = D.kpis;
+  // Title
+  ws1['A1'] = {v:'DISTRIBUIDORA AGUILERA',t:'s',s:sTitle};
+  ws1['A2'] = {v:'Dashboard '+periodo+' \u2014 Neto | Final | N+F',t:'s',s:sSub};
+  // KPI row 1
+  ws1['A4']={v:'Venta Neta',t:'s',s:sLbl}; ws1['B4']={v:k.total_neto,t:'n',s:sValCur};
+  ws1['C4']={v:'Venta Final',t:'s',s:sLbl}; ws1['D4']={v:k.total_final,t:'n',s:sValCur};
+  ws1['E4']={v:'N+F (Sistema)',t:'s',s:sLbl}; ws1['F4']={v:k.total_nf,t:'n',s:sValCur};
+  ws1['G4']={v:'Unidades',t:'s',s:sLbl}; ws1['H4']={v:k.total_unidades,t:'n',s:sValNum};
+  // KPI row 2
+  ws1['A6']={v:'Clientes',t:'s',s:sLbl}; ws1['B6']={v:k.total_clientes,t:'n',s:sValNum};
+  ws1['C6']={v:'Facturas',t:'s',s:sLbl}; ws1['D6']={v:k.total_facturas,t:'n',s:sValNum};
+  ws1['E6']={v:'Ticket Neto',t:'s',s:sLbl}; ws1['F6']={v:k.ticket_neto,t:'n',s:sValCur};
+  ws1['G6']={v:'Bonif.(%)',t:'s',s:sLbl}; ws1['H6']={v:k.bonif_pct,t:'n',s:sValPct};
 
-  let wsRes = XLSX.utils.aoa_to_sheet(resumen);
-  wsRes['!cols'] = [{wch: 35}, {wch: 80}];
-  // Format currency cells
-  ['B7','B8','B9','B13'].forEach(c => { if (wsRes[c]) wsRes[c].z = '$#,##0'; });
-  // Format percentage
-  if (wsRes['B18']) wsRes['B18'].z = '0.0%';
-  XLSX.utils.book_append_sheet(wb, wsRes, 'Resumen');
-
-  // --- 2. MARCAS ---
-  addSheet('Marcas',
-    ['Marca', 'Unidades', 'Importe Neto', 'Importe Final', 'Neto + Final', 'Clientes', '% Participación'],
-    D.marcas.map(m => [String(m.marca), m.unidades, m.neto, m.final, m.nf, m.clientes, m.pct / 100]),
-    [25, 12, 18, 18, 18, 10, 14]
-  );
-  // Format marcas currency & pct
-  let wsMarcas = wb.Sheets['Marcas'];
-  D.marcas.forEach((_, i) => {
-    let r = i + 2;
-    ['C','D','E'].forEach(c => { if (wsMarcas[c+r]) wsMarcas[c+r].z = '$#,##0'; });
-    if (wsMarcas['G'+r]) wsMarcas['G'+r].z = '0.0%';
+  // Vendedores section
+  ws1['A9']={v:'VENDEDORES',t:'s',s:sSection};
+  var vHdrs = ['#','Vendedor','Neto','Final','N+F','Unidades','Clientes','Facturas','Ticket Neto'];
+  var vCols = 'ABCDEFGHI';
+  vHdrs.forEach(function(h,i){ ws1[vCols[i]+'10']={v:h,t:'s',s:sHdr}; });
+  D.vendedores.forEach(function(v,i){
+    var r = 11+i, ev = i%2===1;
+    ws1['A'+r]=dCell(i+1,ev,'num',false);
+    ws1['B'+r]=dCell(v.nombre,ev,'txt',false);
+    ws1['C'+r]=dCell(v.neto,ev,'cur',false);
+    ws1['D'+r]=dCell(v.final,ev,'cur',false);
+    ws1['E'+r]=dCell(v.nf,ev,'cur',true);
+    ws1['F'+r]=dCell(v.unidades,ev,'num',false);
+    ws1['G'+r]=dCell(v.clientes,ev,'num',false);
+    ws1['H'+r]=dCell(v.facturas,ev,'num',false);
+    ws1['I'+r]=dCell(v.ticket,ev,'cur',false);
   });
 
-  // --- 3. PRODUCTOS ---
-  addSheet('Productos',
-    ['Producto', 'Marca', 'Unidades', 'Importe Neto', 'Importe Final', 'Neto + Final', 'Clientes'],
-    D.productos.map(p => [p.producto, String(p.marca), p.unidades, p.neto, p.final, p.nf, p.clientes]),
-    [30, 20, 12, 18, 18, 18, 10]
-  );
-  let wsProds = wb.Sheets['Productos'];
-  D.productos.forEach((_, i) => {
-    let r = i + 2;
-    ['D','E','F'].forEach(c => { if (wsProds[c+r]) wsProds[c+r].z = '$#,##0'; });
+  // Marcas section
+  var mStart = 11 + D.vendedores.length + 2;
+  ws1['A'+mStart]={v:'MARCAS',t:'s',s:sSection};
+  var mHdrs = ['#','Marca','Unidades','Neto','Final','N+F','Clientes','%Part.'];
+  var mHdrRow = mStart+1;
+  mHdrs.forEach(function(h,i){ ws1[vCols[i]+mHdrRow]={v:h,t:'s',s:sHdr}; });
+  D.marcas.forEach(function(m,i){
+    var r = mHdrRow+1+i, ev = i%2===1;
+    ws1['A'+r]=dCell(i+1,ev,'num',false);
+    ws1['B'+r]=dCell(String(m.marca),ev,'txt',false);
+    ws1['C'+r]=dCell(m.unidades,ev,'num',false);
+    ws1['D'+r]=dCell(m.neto,ev,'cur',false);
+    ws1['E'+r]=dCell(m.final,ev,'cur',false);
+    ws1['F'+r]=dCell(m.nf,ev,'cur',true);
+    ws1['G'+r]=dCell(m.clientes,ev,'num',false);
+    ws1['H'+r]=dCell(m.pct/100,ev,'pct',false);
   });
 
-  // --- 4. VENDEDORES ---
-  addSheet('Vendedores',
-    ['Vendedor', 'Importe Neto', 'Importe Final', 'Neto + Final', 'Unidades', 'Clientes', 'Facturas', 'Ticket Prom.'],
-    D.vendedores.map(v => [v.nombre, v.neto, v.final, v.nf, v.unidades, v.clientes, v.facturas, v.ticket]),
-    [28, 18, 18, 18, 12, 10, 10, 16]
-  );
-  let wsVend = wb.Sheets['Vendedores'];
-  D.vendedores.forEach((_, i) => {
-    let r = i + 2;
-    ['B','C','D','H'].forEach(c => { if (wsVend[c+r]) wsVend[c+r].z = '$#,##0'; });
-  });
+  var lastRow1 = mHdrRow+1+D.marcas.length;
+  ws1['!ref'] = 'A1:I'+lastRow1;
+  ws1['!merges'] = [{s:{r:0,c:0},e:{r:0,c:8}},{s:{r:1,c:0},e:{r:1,c:8}}];
+  ws1['!cols'] = [{wch:5},{wch:28},{wch:16},{wch:16},{wch:18},{wch:12},{wch:10},{wch:10},{wch:14}];
+  ws1['!rows'] = [{hpt:24.5},{hpt:16.25}];
+  XLSX.utils.book_append_sheet(wb, ws1, 'Resumen Ejecutivo');
 
-  // --- 5. RUTAS ---
-  addSheet('Rutas',
-    ['Ruta', 'Zona', 'Importe Neto', 'Importe Final', 'Neto + Final', 'Unidades', 'Clientes'],
-    D.rutas.map(r => [String(r.ruta), r.zona, r.neto, r.final, r.nf, r.unidades, r.clientes]),
-    [12, 20, 18, 18, 18, 12, 10]
-  );
-  let wsRutas = wb.Sheets['Rutas'];
-  D.rutas.forEach((_, i) => {
-    let r = i + 2;
-    ['C','D','E'].forEach(c => { if (wsRutas[c+r]) wsRutas[c+r].z = '$#,##0'; });
+  // --- SHEET 2: Top Productos ---
+  var ws2 = {};
+  ws2['A1'] = {v:'TOP 30 PRODUCTOS - '+periodo.toUpperCase(),t:'s',s:{font:{name:'Arial',sz:16,bold:true,color:{rgb:'1A365D'}},alignment:{horizontal:'center',vertical:'center'}}};
+  var pHdrs = ['#','Producto','Marca','Unidades','Neto','Final','N+F','Clientes'];
+  var pCols = 'ABCDEFGH';
+  pHdrs.forEach(function(h,i){ ws2[pCols[i]+'3']={v:h,t:'s',s:sHdr}; });
+  var prods = D.productos.slice(0,30);
+  prods.forEach(function(p,i){
+    var r = 4+i, ev = i%2===0;
+    ws2['A'+r]=dCell(i+1,ev,'num',false);
+    ws2['B'+r]=dCell(p.producto,ev,'txt',false);
+    ws2['C'+r]=dCell(String(p.marca),ev,'txt',false);
+    ws2['D'+r]=dCell(p.unidades,ev,'num',false);
+    ws2['E'+r]=dCell(p.neto,ev,'cur',false);
+    ws2['F'+r]=dCell(p.final,ev,'cur',false);
+    ws2['G'+r]=dCell(p.nf,ev,'cur',true);
+    ws2['H'+r]=dCell(p.clientes,ev,'num',false);
   });
+  ws2['!ref'] = 'A1:H'+(3+prods.length);
+  ws2['!merges'] = [{s:{r:0,c:0},e:{r:0,c:7}}];
+  ws2['!cols'] = [{wch:5},{wch:42},{wch:16},{wch:12},{wch:16},{wch:16},{wch:18},{wch:10}];
+  ws2['!rows'] = [{hpt:19.75}];
+  XLSX.utils.book_append_sheet(wb, ws2, 'Top Productos');
 
-  // --- 6. BONIFICACIONES ---
-  let bonifData = [
-    ['BONIFICACIÓN POR VENDEDOR'],
-    ['Vendedor', 'Unidades Bonif.', 'Total Unidades', '% Bonificación'],
-    ...D.bonif_vendedor.map(b => [b.nombre, b.unid_bonif, b.total_unid, b.pct / 100]),
-    [],
-    ['BONIFICACIÓN POR MARCA'],
-    ['Marca', 'Unidades Bonif.', 'Total Unidades', '% Bonificación'],
-    ...D.bonif_marca.map(b => [String(b.marca), b.unid_bonif, b.total_unid, b.pct / 100])
-  ];
-  let wsBonif = XLSX.utils.aoa_to_sheet(bonifData);
-  wsBonif['!cols'] = [{wch: 25}, {wch: 16}, {wch: 16}, {wch: 16}];
-  // Format pct for vendedor section
-  D.bonif_vendedor.forEach((_, i) => {
-    let r = i + 3;
-    if (wsBonif['D'+r]) wsBonif['D'+r].z = '0.0%';
+  // --- SHEET 3: Rutas ---
+  var ws3 = {};
+  ws3['A1'] = {v:'RUTAS - '+periodo.toUpperCase(),t:'s',s:{font:{name:'Arial',sz:16,bold:true,color:{rgb:'1A365D'}},alignment:{horizontal:'center',vertical:'center'}}};
+  var rHdrs = ['#','Ruta','Zona','Neto','Final','N+F','Unidades','Clientes'];
+  rHdrs.forEach(function(h,i){ ws3[pCols[i]+'3']={v:h,t:'s',s:sHdr}; });
+  D.rutas.forEach(function(rt,i){
+    var r = 4+i, ev = i%2===0;
+    ws3['A'+r]=dCell(i+1,ev,'num',false);
+    ws3['B'+r]=dCell(String(rt.ruta),ev,'txt',false);
+    ws3['C'+r]=dCell(rt.zona||'',ev,'txt',false);
+    ws3['D'+r]=dCell(rt.neto,ev,'cur',false);
+    ws3['E'+r]=dCell(rt.final,ev,'cur',false);
+    ws3['F'+r]=dCell(rt.nf,ev,'cur',true);
+    ws3['G'+r]=dCell(rt.unidades,ev,'num',false);
+    ws3['H'+r]=dCell(rt.clientes,ev,'num',false);
   });
-  // Format pct for marca section
-  let marcaStart = D.bonif_vendedor.length + 5;
-  D.bonif_marca.forEach((_, i) => {
-    let r = marcaStart + i + 2;
-    if (wsBonif['D'+r]) wsBonif['D'+r].z = '0.0%';
-  });
-  XLSX.utils.book_append_sheet(wb, wsBonif, 'Bonificaciones');
+  ws3['!ref'] = 'A1:H'+(3+D.rutas.length);
+  ws3['!merges'] = [{s:{r:0,c:0},e:{r:0,c:7}}];
+  ws3['!cols'] = [{wch:5},{wch:12},{wch:20},{wch:16},{wch:16},{wch:18},{wch:12},{wch:10}];
+  XLSX.utils.book_append_sheet(wb, ws3, 'Rutas');
 
-  // --- 7. CLIENTES ---
-  addSheet('Top Clientes',
-    ['#', 'Cliente', 'Importe Neto', 'Importe Final', 'Neto + Final', 'Unidades', 'Marcas'],
-    D.top_clientes.slice(0, 30).map((c, i) => [i + 1, c.cliente, c.neto, c.final, c.nf, c.unidades, c.marcas]),
-    [5, 30, 18, 18, 18, 12, 8]
-  );
-  let wsCli = wb.Sheets['Top Clientes'];
-  D.top_clientes.slice(0, 30).forEach((_, i) => {
-    let r = i + 2;
-    ['C','D','E'].forEach(c => { if (wsCli[c+r]) wsCli[c+r].z = '$#,##0'; });
+  // --- SHEET 4: Bonificaciones ---
+  var ws4 = {};
+  ws4['A1'] = {v:'BONIFICACIONES - '+periodo.toUpperCase(),t:'s',s:{font:{name:'Arial',sz:16,bold:true,color:{rgb:'1A365D'}},alignment:{horizontal:'center',vertical:'center'}}};
+  // Vendedor section
+  ws4['A3']={v:'POR VENDEDOR',t:'s',s:sSection};
+  ['#','Vendedor','Unid. Bonif.','Total Unid.','% Bonif.'].forEach(function(h,i){ ws4['ABCDE'[i]+'4']={v:h,t:'s',s:sHdr}; });
+  D.bonif_vendedor.forEach(function(b,i){
+    var r=5+i, ev=i%2===0;
+    ws4['A'+r]=dCell(i+1,ev,'num',false);
+    ws4['B'+r]=dCell(b.nombre,ev,'txt',false);
+    ws4['C'+r]=dCell(b.unid_bonif,ev,'num',false);
+    ws4['D'+r]=dCell(b.total_unid,ev,'num',false);
+    ws4['E'+r]=dCell(b.pct/100,ev,'pct',false);
   });
+  // Marca section
+  var bmStart = 5+D.bonif_vendedor.length+2;
+  ws4['A'+bmStart]={v:'POR MARCA',t:'s',s:sSection};
+  ['#','Marca','Unid. Bonif.','Total Unid.','% Bonif.'].forEach(function(h,i){ ws4['ABCDE'[i]+(bmStart+1)]={v:h,t:'s',s:sHdr}; });
+  D.bonif_marca.forEach(function(b,i){
+    var r=bmStart+2+i, ev=i%2===0;
+    ws4['A'+r]=dCell(i+1,ev,'num',false);
+    ws4['B'+r]=dCell(String(b.marca),ev,'txt',false);
+    ws4['C'+r]=dCell(b.unid_bonif,ev,'num',false);
+    ws4['D'+r]=dCell(b.total_unid,ev,'num',false);
+    ws4['E'+r]=dCell(b.pct/100,ev,'pct',false);
+  });
+  var lastRow4 = bmStart+2+D.bonif_marca.length;
+  ws4['!ref'] = 'A1:E'+lastRow4;
+  ws4['!merges'] = [{s:{r:0,c:0},e:{r:0,c:4}}];
+  ws4['!cols'] = [{wch:5},{wch:25},{wch:14},{wch:14},{wch:12}];
+  XLSX.utils.book_append_sheet(wb, ws4, 'Bonificaciones');
 
-  // --- Generate file ---
-  let filename = 'Reporte_Aguilera_' + periodo.replace(/\s/g, '_') + '.xlsx';
+  // --- SHEET 5: Clientes ---
+  var ws5 = {};
+  ws5['A1'] = {v:'TOP CLIENTES - '+periodo.toUpperCase(),t:'s',s:{font:{name:'Arial',sz:16,bold:true,color:{rgb:'1A365D'}},alignment:{horizontal:'center',vertical:'center'}}};
+  var cHdrs = ['#','Cliente','Neto','Final','N+F','Unidades','Marcas'];
+  var cCols = 'ABCDEFG';
+  cHdrs.forEach(function(h,i){ ws5[cCols[i]+'3']={v:h,t:'s',s:sHdr}; });
+  var clients = D.top_clientes.slice(0,30);
+  clients.forEach(function(c,i){
+    var r=4+i, ev=i%2===0;
+    ws5['A'+r]=dCell(i+1,ev,'num',false);
+    ws5['B'+r]=dCell(c.cliente,ev,'txt',false);
+    ws5['C'+r]=dCell(c.neto,ev,'cur',false);
+    ws5['D'+r]=dCell(c.final,ev,'cur',false);
+    ws5['E'+r]=dCell(c.nf,ev,'cur',true);
+    ws5['F'+r]=dCell(c.unidades,ev,'num',false);
+    ws5['G'+r]=dCell(c.marcas,ev,'num',false);
+  });
+  ws5['!ref'] = 'A1:G'+(3+clients.length);
+  ws5['!merges'] = [{s:{r:0,c:0},e:{r:0,c:6}}];
+  ws5['!cols'] = [{wch:5},{wch:30},{wch:16},{wch:16},{wch:18},{wch:12},{wch:8}];
+  XLSX.utils.book_append_sheet(wb, ws5, 'Clientes');
+
+  // --- SHEET 6: Recomendaciones ---
+  var ws6 = {};
+  ws6['A1'] = {v:'RECOMENDACIONES - '+periodo.toUpperCase(),t:'s',s:{font:{name:'Arial',sz:16,bold:true,color:{rgb:'1A365D'}},alignment:{horizontal:'center',vertical:'center'}}};
+  var recs = generateRecommendations();
+  recs.forEach(function(rec,i){
+    var r = 3+i;
+    ws6['A'+r] = {v:rec.icon+' '+rec.title,t:'s',s:{font:{name:'Arial',sz:11,bold:true,color:{rgb:'2B6CB0'}},alignment:{vertical:'center'}}};
+    ws6['B'+r] = {v:rec.text,t:'s',s:{font:{name:'Arial',sz:10},alignment:{vertical:'center',wrapText:true}}};
+  });
+  ws6['!ref'] = 'A1:B'+(2+recs.length);
+  ws6['!merges'] = [{s:{r:0,c:0},e:{r:0,c:1}}];
+  ws6['!cols'] = [{wch:30},{wch:80}];
+  XLSX.utils.book_append_sheet(wb, ws6, 'Recomendaciones');
+
+  // Generate
+  var filename = 'Dashboard_Aguilera_' + periodo.replace(/\s/g, '') + '.xlsx';
   XLSX.writeFile(wb, filename);
 }
 
