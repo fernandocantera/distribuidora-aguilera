@@ -33,7 +33,6 @@ th:hover{background:var(--sec)}
 td{padding:10px 12px;border-bottom:1px solid var(--brd)}
 tr:nth-child(even){background:#f8fafc}
 tr:hover{background:#edf2f7}
-td.nf{color:var(--sec);font-weight:600}
 .sel{padding:8px 12px;border:1px solid var(--brd);border-radius:6px;font-size:13px;min-width:200px}
 .recs{background:linear-gradient(135deg,var(--pri),var(--sec));border-radius:8px;padding:24px;margin-top:24px;color:#fff}
 .recs h3{color:var(--warn);border:none;padding:0;margin-bottom:16px;font-size:18px}
@@ -135,22 +134,22 @@ td.nf{color:var(--sec);font-weight:600}
 <div class="card"><h3>Facturación por Marca (Top 15)</h3><div class="chbox"><canvas id="ch-marcas"></canvas></div></div>
 <div class="row2">
 <div class="card"><h3>Participación por Unidades (Top 10)</h3><div style="display:flex;align-items:center;gap:16px"><div class="chbox" style="height:300px;flex:1"><canvas id="ch-share"></canvas></div><div id="leg-share" style="flex:0 0 auto;max-width:180px;display:flex;flex-wrap:wrap;flex-direction:column"></div></div></div>
-<div class="card"><h3>Detalle de Marcas</h3><div style="max-height:400px;overflow:auto"><table><thead><tr><th>Marca</th><th>Unidades</th><th>Neto</th><th>Final</th><th>N+F</th><th>Clientes</th><th>%</th></tr></thead><tbody id="tb-marcas"></tbody></table></div></div>
+<div class="card"><h3>Detalle de Marcas</h3><div style="max-height:400px;overflow:auto"><table><thead><tr><th>Marca</th><th>Unidades</th><th>Neto</th><th>Final</th><th>Clientes</th><th>%</th></tr></thead><tbody id="tb-marcas"></tbody></table></div></div>
 </div></div>
 
 <div class="pane" id="p-productos">
 <div class="card"><h3>Top 15 Productos</h3><div class="chbox"><canvas id="ch-prods"></canvas></div></div>
-<div class="card"><h3>Detalle Productos</h3><div style="overflow:auto"><table><thead><tr><th>Producto</th><th>Marca</th><th>Unidades</th><th>Neto</th><th>Final</th><th>N+F</th><th>Clientes</th></tr></thead><tbody id="tb-prods"></tbody></table></div></div>
+<div class="card"><h3>Detalle Productos</h3><div style="overflow:auto"><table><thead><tr><th>Producto</th><th>Marca</th><th>Unidades</th><th>Neto</th><th>Final</th><th>Clientes</th></tr></thead><tbody id="tb-prods"></tbody></table></div></div>
 </div>
 
 <div class="pane" id="p-vendedores">
 <div class="card"><h3>Venta por Vendedor</h3><div class="chbox"><canvas id="ch-vend"></canvas></div></div>
-<div class="card"><h3>Detalle Vendedores</h3><div style="overflow:auto"><table><thead><tr><th>Vendedor</th><th>Neto</th><th>Final</th><th>N+F</th><th>Unidades</th><th>Clientes</th><th>Facturas</th><th>Ticket</th></tr></thead><tbody id="tb-vend"></tbody></table></div></div>
+<div class="card"><h3>Detalle Vendedores</h3><div style="overflow:auto"><table><thead><tr><th>Vendedor</th><th>Neto</th><th>Final</th><th>Unidades</th><th>Clientes</th><th>Facturas</th><th>Ticket</th></tr></thead><tbody id="tb-vend"></tbody></table></div></div>
 </div>
 
 <div class="pane" id="p-rutas">
 <div class="card"><h3>Top 20 Rutas</h3><div class="chbox" style="height:500px"><canvas id="ch-rutas"></canvas></div></div>
-<div class="card"><h3>Detalle Rutas</h3><div style="overflow:auto;max-height:500px"><table><thead><tr><th>Ruta</th><th>Zona</th><th>Neto</th><th>Final</th><th>N+F</th><th>Unidades</th><th>Clientes</th></tr></thead><tbody id="tb-rutas"></tbody></table></div></div>
+<div class="card"><h3>Detalle Rutas</h3><div style="overflow:auto;max-height:500px"><table><thead><tr><th>Ruta</th><th>Zona</th><th>Neto</th><th>Final</th><th>Unidades</th><th>Clientes</th></tr></thead><tbody id="tb-rutas"></tbody></table></div></div>
 </div>
 
 <div class="pane" id="p-bonif">
@@ -167,11 +166,11 @@ td.nf{color:var(--sec);font-weight:600}
 <div class="card">
 <h3>Top 20 Clientes por Marca</h3>
 <div style="margin-bottom:16px"><label style="font-weight:600;margin-right:8px">Marca:</label><select id="sel-marca" class="sel"><option value="">-- Seleccionar --</option></select></div>
-<table><thead><tr><th>#</th><th>Cliente</th><th>Unidades</th><th>Neto</th><th>N+F</th></tr></thead><tbody id="tb-cm"></tbody></table>
+<table><thead><tr><th>#</th><th>Cliente</th><th>Unidades</th><th>Neto</th></tr></thead><tbody id="tb-cm"></tbody></table>
 </div>
 <div class="card">
 <h3>Top 30 Clientes General</h3>
-<table><thead><tr><th>#</th><th>Cliente</th><th>Neto</th><th>Final</th><th>N+F</th><th>Unidades</th><th>Marcas</th></tr></thead><tbody id="tb-tc"></tbody></table>
+<table><thead><tr><th>#</th><th>Cliente</th><th>Neto</th><th>Final</th><th>Unidades</th><th>Marcas</th></tr></thead><tbody id="tb-tc"></tbody></table>
 </div></div>
 
 <div class="pane" id="p-upload">
@@ -297,8 +296,8 @@ function renderMarcas() {
     data: {
       labels: marcas.map(m => m.marca),
       datasets: [{
-        label: 'Facturación Neto + Final',
-        data: marcas.map(m => m.nf),
+        label: 'Facturación Neto',
+        data: marcas.map(m => m.neto),
         backgroundColor: C.slice(0, marcas.length),
         borderWidth: 0
       }]
@@ -343,7 +342,7 @@ function renderMarcas() {
   // Table
   let tb = document.getElementById('tb-marcas');
   if (tb) {
-    tb.innerHTML = D.marcas.map(m => `<tr><td>${m.marca}</td><td class="nf">${fC(m.unidades)}</td><td class="nf">${fN(m.neto)}</td><td class="nf">${fN(m.final)}</td><td class="nf">${fN(m.nf)}</td><td>${m.clientes}</td><td>${fP(m.neto, D.kpis.total_neto)}%</td></tr>`).join('');
+    tb.innerHTML = D.marcas.map(m => `<tr><td>${m.marca}</td><td>${fC(m.unidades)}</td><td>${fN(m.neto)}</td><td>${fN(m.final)}</td><td>${m.clientes}</td><td>${fP(m.neto, D.kpis.total_neto)}%</td></tr>`).join('');
   }
 }
 
@@ -359,8 +358,8 @@ function renderProductos() {
     data: {
       labels: prods.map(p => p.producto),
       datasets: [{
-        label: 'N+F',
-        data: prods.map(p => p.nf),
+        label: 'Neto',
+        data: prods.map(p => p.neto),
         backgroundColor: '#38b2ac',
         borderWidth: 0
       }]
@@ -376,7 +375,7 @@ function renderProductos() {
 
   let tb = document.getElementById('tb-prods');
   if (tb) {
-    tb.innerHTML = D.productos.map(p => `<tr><td>${p.producto}</td><td>${p.marca}</td><td class="nf">${fC(p.unidades)}</td><td class="nf">${fN(p.neto)}</td><td class="nf">${fN(p.final)}</td><td class="nf">${fN(p.nf)}</td><td>${p.clientes}</td></tr>`).join('');
+    tb.innerHTML = D.productos.map(p => `<tr><td>${p.producto}</td><td>${p.marca}</td><td>${fC(p.unidades)}</td><td>${fN(p.neto)}</td><td>${fN(p.final)}</td><td>${p.clientes}</td></tr>`).join('');
   }
 }
 
@@ -392,8 +391,8 @@ function renderVendedores() {
     data: {
       labels: vend.map(v => v.nombre),
       datasets: [{
-        label: 'Neto + Final',
-        data: vend.map(v => v.nf),
+        label: 'Neto',
+        data: vend.map(v => v.neto),
         backgroundColor: '#2b6cb0',
         borderWidth: 0
       }]
@@ -409,7 +408,7 @@ function renderVendedores() {
 
   let tb = document.getElementById('tb-vend');
   if (tb) {
-    tb.innerHTML = vend.map(v => `<tr><td>${v.nombre}</td><td class="nf">${fN(v.neto)}</td><td class="nf">${fN(v.final)}</td><td class="nf">${fN(v.nf)}</td><td>${fC(v.unidades)}</td><td>${v.clientes}</td><td>${v.facturas}</td><td>${fN(v.ticket)}</td></tr>`).join('');
+    tb.innerHTML = vend.map(v => `<tr><td>${v.nombre}</td><td>${fN(v.neto)}</td><td>${fN(v.final)}</td><td>${fC(v.unidades)}</td><td>${v.clientes}</td><td>${v.facturas}</td><td>${fN(v.ticket)}</td></tr>`).join('');
   }
 }
 
@@ -425,8 +424,8 @@ function renderRutas() {
     data: {
       labels: rutas.map(r => r.ruta),
       datasets: [{
-        label: 'Neto + Final',
-        data: rutas.map(r => r.nf),
+        label: 'Neto',
+        data: rutas.map(r => r.neto),
         backgroundColor: '#4299e1',
         borderWidth: 0
       }]
@@ -442,7 +441,7 @@ function renderRutas() {
 
   let tb = document.getElementById('tb-rutas');
   if (tb) {
-    tb.innerHTML = D.rutas.map(r => `<tr><td>${r.ruta}</td><td>${r.zona}</td><td class="nf">${fN(r.neto)}</td><td class="nf">${fN(r.final)}</td><td class="nf">${fN(r.nf)}</td><td>${fC(r.unidades)}</td><td>${r.clientes}</td></tr>`).join('');
+    tb.innerHTML = D.rutas.map(r => `<tr><td>${r.ruta}</td><td>${r.zona}</td><td>${fN(r.neto)}</td><td>${fN(r.final)}</td><td>${fC(r.unidades)}</td><td>${r.clientes}</td></tr>`).join('');
   }
 }
 
@@ -503,12 +502,12 @@ function renderBonif() {
 
   let tb1 = document.getElementById('tb-bv');
   if (tb1) {
-    tb1.innerHTML = D.bonif_vendedor.map(b => `<tr><td>${b.nombre}</td><td class="nf">${fC(b.unid_bonif)}</td><td class="nf">${fC(b.total_unid)}</td><td class="nf">${fP(b.unid_bonif, b.total_unid)}%</td></tr>`).join('');
+    tb1.innerHTML = D.bonif_vendedor.map(b => `<tr><td>${b.nombre}</td><td>${fC(b.unid_bonif)}</td><td>${fC(b.total_unid)}</td><td>${fP(b.unid_bonif, b.total_unid)}%</td></tr>`).join('');
   }
 
   let tb2 = document.getElementById('tb-bm');
   if (tb2) {
-    tb2.innerHTML = D.bonif_marca.map(b => `<tr><td>${b.marca}</td><td class="nf">${fC(b.unid_bonif)}</td><td class="nf">${fC(b.total_unid)}</td><td class="nf">${fP(b.unid_bonif, b.total_unid)}%</td></tr>`).join('');
+    tb2.innerHTML = D.bonif_marca.map(b => `<tr><td>${b.marca}</td><td>${fC(b.unid_bonif)}</td><td>${fC(b.total_unid)}</td><td>${fP(b.unid_bonif, b.total_unid)}%</td></tr>`).join('');
   }
 }
 
@@ -533,17 +532,17 @@ function generateRecommendations() {
 
   // --- 2. Análisis de vendedores ---
   if (D.vendedores && D.vendedores.length >= 2) {
-    let sorted = [...D.vendedores].sort((a,b) => b.nf - a.nf);
+    let sorted = [...D.vendedores].sort((a,b) => b.neto - a.neto);
     let topV = sorted[0];
     let botV = sorted[sorted.length - 1];
-    let topPct = (topV.nf / k.total_nf * 100);
+    let topPct = (topV.neto / k.total_neto * 100);
     let avgTicket = k.ticket_neto;
     let bestTicket = sorted.reduce((best, v) => v.ticket > best.ticket ? v : best, sorted[0]);
     let worstTicket = sorted.reduce((worst, v) => (v.ticket > 0 && v.ticket < worst.ticket) ? v : worst, sorted[0]);
 
     if (topPct > 30) {
       recs.push({icon:'🏆', title:'Vendedor dominante: ' + topV.nombre,
-        text: topV.nombre + ' concentra el ' + fPct(topPct) + '% del N+F (' + fM(topV.nf) + '). Riesgo si se va. Analizar sus prácticas para replicar con ' + botV.nombre + ' (último con ' + fM(botV.nf) + ').'});
+        text: topV.nombre + ' concentra el ' + fPct(topPct) + '% de la facturación neta (' + fM(topV.neto) + '). Riesgo si se va. Analizar sus prácticas para replicar con ' + botV.nombre + ' (último con ' + fM(botV.neto) + ').'});
     }
 
     if (bestTicket.ticket > worstTicket.ticket * 2 && worstTicket.ticket > 0) {
@@ -578,10 +577,10 @@ function generateRecommendations() {
   // --- 5. Clientes ---
   if (D.top_clientes && D.top_clientes.length >= 3) {
     let top3cli = D.top_clientes.slice(0, 3);
-    let top3pct = top3cli.reduce((s,c) => s + c.nf, 0) / k.total_nf * 100;
+    let top3pct = top3cli.reduce((s,c) => s + c.neto, 0) / k.total_neto * 100;
     if (top3pct > 15) {
       recs.push({icon:'👥', title:'Dependencia de pocos clientes',
-        text: 'Los 3 principales clientes representan ' + fPct(top3pct) + '% del N+F. Riesgo de concentración. Desarrollar programa de fidelización para el segundo y tercer nivel de clientes.'});
+        text: 'Los 3 principales clientes representan ' + fPct(top3pct) + '% de la facturación neta. Riesgo de concentración. Desarrollar programa de fidelización para el segundo y tercer nivel de clientes.'});
     } else {
       recs.push({icon:'👥', title:'Cartera diversificada',
         text: fC(k.total_clientes) + ' clientes activos con buena distribución. Top 3 representan solo ' + fPct(top3pct) + '% del total. Seguir expandiendo base.'});
@@ -620,9 +619,9 @@ function handleMarcaChange(e) {
   let tb = document.getElementById('tb-cm');
   if (tb) {
     if (marca && D && D.clientes_x_marca && D.clientes_x_marca[marca]) {
-      tb.innerHTML = D.clientes_x_marca[marca].slice(0, 20).map((c, i) => `<tr><td>${i+1}</td><td>${c.cliente}</td><td class="nf">${fC(c.unidades)}</td><td class="nf">${fN(c.neto)}</td><td class="nf">${fN(c.nf)}</td></tr>`).join('');
+      tb.innerHTML = D.clientes_x_marca[marca].slice(0, 20).map((c, i) => `<tr><td>${i+1}</td><td>${c.cliente}</td><td>${fC(c.unidades)}</td><td>${fN(c.neto)}</td></tr>`).join('');
     } else {
-      tb.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted)">Selecciona una marca</td></tr>';
+      tb.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--muted)">Selecciona una marca</td></tr>';
     }
   }
 }
@@ -644,12 +643,12 @@ function renderClientes() {
 
   let tb = document.getElementById('tb-cm');
   if (tb) {
-    tb.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted)">Selecciona una marca</td></tr>';
+    tb.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--muted)">Selecciona una marca</td></tr>';
   }
 
   let tb2 = document.getElementById('tb-tc');
   if (tb2) {
-    tb2.innerHTML = D.top_clientes.slice(0, 30).map((c, i) => `<tr><td>${i+1}</td><td>${c.cliente}</td><td class="nf">${fN(c.neto)}</td><td class="nf">${fN(c.final)}</td><td class="nf">${fN(c.nf)}</td><td>${fC(c.unidades)}</td><td>${c.marcas}</td></tr>`).join('');
+    tb2.innerHTML = D.top_clientes.slice(0, 30).map((c, i) => `<tr><td>${i+1}</td><td>${c.cliente}</td><td>${fN(c.neto)}</td><td>${fN(c.final)}</td><td>${fC(c.unidades)}</td><td>${c.marcas}</td></tr>`).join('');
   }
 }
 
@@ -660,7 +659,6 @@ function init() {
   let kpis = [
     {label: 'Total Neto', value: fN(D.kpis.total_neto)},
     {label: 'Total Final', value: fN(D.kpis.total_final)},
-    {label: 'Neto + Final', value: fN(D.kpis.total_nf)},
     {label: 'Total Unidades', value: fC(D.kpis.total_unidades)},
     {label: 'Total Clientes', value: fC(D.kpis.total_clientes)},
     {label: 'Total Facturas', value: fC(D.kpis.total_facturas)},
@@ -682,7 +680,6 @@ function init() {
     resEl.innerHTML = `Período: <strong>${document.getElementById('periodo-label').textContent}</strong><br>
 Total Facturación Neto: <strong>${fN(D.kpis.total_neto)}</strong><br>
 Total Facturación Final: <strong>${fN(D.kpis.total_final)}</strong><br>
-Total N+F: <strong>${fN(D.kpis.total_nf)}</strong><br>
 Total Unidades: <strong>${fC(D.kpis.total_unidades)}</strong><br>
 Clientes: <strong>${D.kpis.total_clientes}</strong> | Facturas: <strong>${D.kpis.total_facturas}</strong> | Marcas: <strong>${D.kpis.total_marcas}</strong><br>
 Ticket Promedio: <strong>${fN(D.kpis.ticket_neto)}</strong>`;
@@ -1176,10 +1173,9 @@ function downloadExcel() {
   var sValNum = {font:{name:'Arial',sz:13,bold:true,color:{rgb:'2B6CB0'}},alignment:{horizontal:'center',vertical:'center'},border:bdr,numFmt:'#,##0'};
   var sValPct = {font:{name:'Arial',sz:13,bold:true,color:{rgb:'2B6CB0'}},alignment:{horizontal:'center',vertical:'center'},border:bdr,numFmt:'0.0'};
 
-  function dCell(val, isEven, type, isNF) {
+  function dCell(val, isEven, type) {
     var s = {font:{name:'Arial',sz:10},border:bdr,alignment:{}};
     if (isEven) s.fill = {fgColor:{rgb:'EDF2F7'}};
-    if (isNF) { s.font = {name:'Arial',sz:10,bold:true,color:{rgb:'2B6CB0'}}; s.fill = {fgColor:{rgb:'E6FFFA'}}; }
     if (type === 'cur') { s.alignment.horizontal = 'right'; s.alignment.vertical = 'center'; s.numFmt = '$#,##0'; }
     else if (type === 'num') { s.alignment.horizontal = 'right'; s.alignment.vertical = 'center'; s.numFmt = '#,##0'; }
     else if (type === 'pct') { s.alignment.horizontal = 'right'; s.alignment.vertical = 'center'; s.numFmt = '0.0%'; }
@@ -1193,12 +1189,11 @@ function downloadExcel() {
   var k = D.kpis;
   // Title
   ws1['A1'] = {v:'DISTRIBUIDORA AGUILERA',t:'s',s:sTitle};
-  ws1['A2'] = {v:(periodoArr.length > 1 ? 'Datos Acumulados: ' : 'Dashboard ') + periodo+' \u2014 Neto | Final | N+F',t:'s',s:sSub};
+  ws1['A2'] = {v:(periodoArr.length > 1 ? 'Datos Acumulados: ' : 'Dashboard ') + periodo+' \u2014 Neto | Final',t:'s',s:sSub};
   // KPI row 1
   ws1['A4']={v:'Venta Neta',t:'s',s:sLbl}; ws1['B4']={v:k.total_neto,t:'n',s:sValCur};
   ws1['C4']={v:'Venta Final',t:'s',s:sLbl}; ws1['D4']={v:k.total_final,t:'n',s:sValCur};
-  ws1['E4']={v:'N+F (Sistema)',t:'s',s:sLbl}; ws1['F4']={v:k.total_nf,t:'n',s:sValCur};
-  ws1['G4']={v:'Unidades',t:'s',s:sLbl}; ws1['H4']={v:k.total_unidades,t:'n',s:sValNum};
+  ws1['E4']={v:'Unidades',t:'s',s:sLbl}; ws1['F4']={v:k.total_unidades,t:'n',s:sValNum};
   // KPI row 2
   ws1['A6']={v:'Clientes',t:'s',s:sLbl}; ws1['B6']={v:k.total_clientes,t:'n',s:sValNum};
   ws1['C6']={v:'Facturas',t:'s',s:sLbl}; ws1['D6']={v:k.total_facturas,t:'n',s:sValNum};
@@ -1207,8 +1202,8 @@ function downloadExcel() {
 
   // Vendedores section
   ws1['A9']={v:'VENDEDORES',t:'s',s:sSection};
-  var vHdrs = ['#','Vendedor','Neto','Final','N+F','Unidades','Clientes','Facturas','Ticket Neto'];
-  var vCols = 'ABCDEFGHI';
+  var vHdrs = ['#','Vendedor','Neto','Final','Unidades','Clientes','Facturas','Ticket Neto'];
+  var vCols = 'ABCDEFGH';
   vHdrs.forEach(function(h,i){ ws1[vCols[i]+'10']={v:h,t:'s',s:sHdr}; });
   D.vendedores.forEach(function(v,i){
     var r = 11+i, ev = i%2===1;
@@ -1216,17 +1211,16 @@ function downloadExcel() {
     ws1['B'+r]=dCell(v.nombre,ev,'txt',false);
     ws1['C'+r]=dCell(v.neto,ev,'cur',false);
     ws1['D'+r]=dCell(v.final,ev,'cur',false);
-    ws1['E'+r]=dCell(v.nf,ev,'cur',true);
-    ws1['F'+r]=dCell(v.unidades,ev,'num',false);
-    ws1['G'+r]=dCell(v.clientes,ev,'num',false);
-    ws1['H'+r]=dCell(v.facturas,ev,'num',false);
-    ws1['I'+r]=dCell(v.ticket,ev,'cur',false);
+    ws1['E'+r]=dCell(v.unidades,ev,'num',false);
+    ws1['F'+r]=dCell(v.clientes,ev,'num',false);
+    ws1['G'+r]=dCell(v.facturas,ev,'num',false);
+    ws1['H'+r]=dCell(v.ticket,ev,'cur',false);
   });
 
   // Marcas section
   var mStart = 11 + D.vendedores.length + 2;
   ws1['A'+mStart]={v:'MARCAS',t:'s',s:sSection};
-  var mHdrs = ['#','Marca','Unidades','Neto','Final','N+F','Clientes','%Part.'];
+  var mHdrs = ['#','Marca','Unidades','Neto','Final','Clientes','%Part.'];
   var mHdrRow = mStart+1;
   mHdrs.forEach(function(h,i){ ws1[vCols[i]+mHdrRow]={v:h,t:'s',s:sHdr}; });
   D.marcas.forEach(function(m,i){
@@ -1236,23 +1230,22 @@ function downloadExcel() {
     ws1['C'+r]=dCell(m.unidades,ev,'num',false);
     ws1['D'+r]=dCell(m.neto,ev,'cur',false);
     ws1['E'+r]=dCell(m.final,ev,'cur',false);
-    ws1['F'+r]=dCell(m.nf,ev,'cur',true);
-    ws1['G'+r]=dCell(m.clientes,ev,'num',false);
-    ws1['H'+r]=dCell(m.pct/100,ev,'pct',false);
+    ws1['F'+r]=dCell(m.clientes,ev,'num',false);
+    ws1['G'+r]=dCell(m.pct/100,ev,'pct',false);
   });
 
   var lastRow1 = mHdrRow+1+D.marcas.length;
-  ws1['!ref'] = 'A1:I'+lastRow1;
-  ws1['!merges'] = [{s:{r:0,c:0},e:{r:0,c:8}},{s:{r:1,c:0},e:{r:1,c:8}}];
-  ws1['!cols'] = [{wch:5},{wch:28},{wch:16},{wch:16},{wch:18},{wch:12},{wch:10},{wch:10},{wch:14}];
+  ws1['!ref'] = 'A1:H'+lastRow1;
+  ws1['!merges'] = [{s:{r:0,c:0},e:{r:0,c:7}},{s:{r:1,c:0},e:{r:1,c:7}}];
+  ws1['!cols'] = [{wch:5},{wch:28},{wch:16},{wch:16},{wch:16},{wch:10},{wch:10},{wch:14}];
   ws1['!rows'] = [{hpt:24.5},{hpt:16.25}];
   XLSX.utils.book_append_sheet(wb, ws1, 'Resumen Ejecutivo');
 
   // --- SHEET 2: Top Productos ---
   var ws2 = {};
   ws2['A1'] = {v:'TOP 30 PRODUCTOS - '+periodo.toUpperCase(),t:'s',s:{font:{name:'Arial',sz:16,bold:true,color:{rgb:'1A365D'}},alignment:{horizontal:'center',vertical:'center'}}};
-  var pHdrs = ['#','Producto','Marca','Unidades','Neto','Final','N+F','Clientes'];
-  var pCols = 'ABCDEFGH';
+  var pHdrs = ['#','Producto','Marca','Unidades','Neto','Final','Clientes'];
+  var pCols = 'ABCDEFG';
   pHdrs.forEach(function(h,i){ ws2[pCols[i]+'3']={v:h,t:'s',s:sHdr}; });
   var prods = D.productos.slice(0,30);
   prods.forEach(function(p,i){
@@ -1263,19 +1256,18 @@ function downloadExcel() {
     ws2['D'+r]=dCell(p.unidades,ev,'num',false);
     ws2['E'+r]=dCell(p.neto,ev,'cur',false);
     ws2['F'+r]=dCell(p.final,ev,'cur',false);
-    ws2['G'+r]=dCell(p.nf,ev,'cur',true);
-    ws2['H'+r]=dCell(p.clientes,ev,'num',false);
+    ws2['G'+r]=dCell(p.clientes,ev,'num',false);
   });
-  ws2['!ref'] = 'A1:H'+(3+prods.length);
-  ws2['!merges'] = [{s:{r:0,c:0},e:{r:0,c:7}}];
-  ws2['!cols'] = [{wch:5},{wch:42},{wch:16},{wch:12},{wch:16},{wch:16},{wch:18},{wch:10}];
+  ws2['!ref'] = 'A1:G'+(3+prods.length);
+  ws2['!merges'] = [{s:{r:0,c:0},e:{r:0,c:6}}];
+  ws2['!cols'] = [{wch:5},{wch:42},{wch:16},{wch:12},{wch:16},{wch:16},{wch:10}];
   ws2['!rows'] = [{hpt:19.75}];
   XLSX.utils.book_append_sheet(wb, ws2, 'Top Productos');
 
   // --- SHEET 3: Rutas ---
   var ws3 = {};
   ws3['A1'] = {v:'RUTAS - '+periodo.toUpperCase(),t:'s',s:{font:{name:'Arial',sz:16,bold:true,color:{rgb:'1A365D'}},alignment:{horizontal:'center',vertical:'center'}}};
-  var rHdrs = ['#','Ruta','Zona','Neto','Final','N+F','Unidades','Clientes'];
+  var rHdrs = ['#','Ruta','Zona','Neto','Final','Unidades','Clientes'];
   rHdrs.forEach(function(h,i){ ws3[pCols[i]+'3']={v:h,t:'s',s:sHdr}; });
   D.rutas.forEach(function(rt,i){
     var r = 4+i, ev = i%2===0;
@@ -1284,13 +1276,12 @@ function downloadExcel() {
     ws3['C'+r]=dCell(rt.zona||'',ev,'txt',false);
     ws3['D'+r]=dCell(rt.neto,ev,'cur',false);
     ws3['E'+r]=dCell(rt.final,ev,'cur',false);
-    ws3['F'+r]=dCell(rt.nf,ev,'cur',true);
-    ws3['G'+r]=dCell(rt.unidades,ev,'num',false);
-    ws3['H'+r]=dCell(rt.clientes,ev,'num',false);
+    ws3['F'+r]=dCell(rt.unidades,ev,'num',false);
+    ws3['G'+r]=dCell(rt.clientes,ev,'num',false);
   });
-  ws3['!ref'] = 'A1:H'+(3+D.rutas.length);
-  ws3['!merges'] = [{s:{r:0,c:0},e:{r:0,c:7}}];
-  ws3['!cols'] = [{wch:5},{wch:12},{wch:20},{wch:16},{wch:16},{wch:18},{wch:12},{wch:10}];
+  ws3['!ref'] = 'A1:G'+(3+D.rutas.length);
+  ws3['!merges'] = [{s:{r:0,c:0},e:{r:0,c:6}}];
+  ws3['!cols'] = [{wch:5},{wch:12},{wch:20},{wch:16},{wch:16},{wch:12},{wch:10}];
   XLSX.utils.book_append_sheet(wb, ws3, 'Rutas');
 
   // --- SHEET 4: Bonificaciones ---
@@ -1328,8 +1319,8 @@ function downloadExcel() {
   // --- SHEET 5: Clientes ---
   var ws5 = {};
   ws5['A1'] = {v:'TOP CLIENTES - '+periodo.toUpperCase(),t:'s',s:{font:{name:'Arial',sz:16,bold:true,color:{rgb:'1A365D'}},alignment:{horizontal:'center',vertical:'center'}}};
-  var cHdrs = ['#','Cliente','Neto','Final','N+F','Unidades','Marcas'];
-  var cCols = 'ABCDEFG';
+  var cHdrs = ['#','Cliente','Neto','Final','Unidades','Marcas'];
+  var cCols = 'ABCDEF';
   cHdrs.forEach(function(h,i){ ws5[cCols[i]+'3']={v:h,t:'s',s:sHdr}; });
   var clients = D.top_clientes.slice(0,30);
   clients.forEach(function(c,i){
@@ -1338,13 +1329,12 @@ function downloadExcel() {
     ws5['B'+r]=dCell(c.cliente,ev,'txt',false);
     ws5['C'+r]=dCell(c.neto,ev,'cur',false);
     ws5['D'+r]=dCell(c.final,ev,'cur',false);
-    ws5['E'+r]=dCell(c.nf,ev,'cur',true);
-    ws5['F'+r]=dCell(c.unidades,ev,'num',false);
-    ws5['G'+r]=dCell(c.marcas,ev,'num',false);
+    ws5['E'+r]=dCell(c.unidades,ev,'num',false);
+    ws5['F'+r]=dCell(c.marcas,ev,'num',false);
   });
-  ws5['!ref'] = 'A1:G'+(3+clients.length);
-  ws5['!merges'] = [{s:{r:0,c:0},e:{r:0,c:6}}];
-  ws5['!cols'] = [{wch:5},{wch:30},{wch:16},{wch:16},{wch:18},{wch:12},{wch:8}];
+  ws5['!ref'] = 'A1:F'+(3+clients.length);
+  ws5['!merges'] = [{s:{r:0,c:0},e:{r:0,c:5}}];
+  ws5['!cols'] = [{wch:5},{wch:30},{wch:16},{wch:16},{wch:12},{wch:8}];
   XLSX.utils.book_append_sheet(wb, ws5, 'Clientes');
 
   // --- SHEET 6: Recomendaciones ---
