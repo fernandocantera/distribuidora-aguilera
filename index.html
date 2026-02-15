@@ -194,7 +194,7 @@ td.nf{color:var(--sec);font-weight:600}
 </div>
 </div>
 
-<div class="recs"><h3>Recomendaciones</h3><div class="rgrid" id="recs"></div></div>
+<div class="recs"><h3 id="recs-title">Recomendaciones</h3><div class="rgrid" id="recs"></div></div>
 <div class="ft"><button class="btn" onclick="window.print()">Imprimir Dashboard</button>
 <p style="margin-top:12px">Distribuidora Aguilera</p></div>
 </div>
@@ -487,6 +487,109 @@ function renderBonif() {
   }
 }
 
+function generateRecommendations() {
+  if (!D || !D.kpis) return [{icon:'⚠️', title:'Sin datos', text:'Subí un archivo Excel para generar recomendaciones.'}];
+
+  let recs = [];
+  let k = D.kpis;
+
+  // --- 1. Producto/Marca estrella ---
+  if (D.marcas && D.marcas.length >= 2) {
+    let top = D.marcas[0];
+    let pctTop = (top.neto / k.total_neto * 100);
+    if (pctTop > 25) {
+      recs.push({icon:'⭐', title:'Concentración en ' + top.marca,
+        text: top.marca + ' representa el ' + fN(pctTop,1) + '% de la facturación neta ($' + fM(top.neto) + '). Alta dependencia de una sola marca. Diversificar con incentivos para ' + D.marcas[1].marca + ' y ' + D.marcas[2].marca + '.'});
+    } else {
+      recs.push({icon:'✅', title:'Mix de marcas equilibrado',
+        text: 'La marca líder (' + top.marca + ') tiene ' + fN(pctTop,1) + '% del total. Buena diversificación. Mantener estrategia actual.'});
+    }
+  }
+
+  // --- 2. Análisis de vendedores ---
+  if (D.vendedores && D.vendedores.length >= 2) {
+    let sorted = [...D.vendedores].sort((a,b) => b.nf - a.nf);
+    let topV = sorted[0];
+    let botV = sorted[sorted.length - 1];
+    let topPct = (topV.nf / k.total_nf * 100);
+    let avgTicket = k.ticket_neto;
+    let bestTicket = sorted.reduce((best, v) => v.ticket > best.ticket ? v : best, sorted[0]);
+    let worstTicket = sorted.reduce((worst, v) => (v.ticket > 0 && v.ticket < worst.ticket) ? v : worst, sorted[0]);
+
+    if (topPct > 30) {
+      recs.push({icon:'🏆', title:'Vendedor dominante: ' + topV.nombre,
+        text: topV.nombre + ' concentra el ' + fN(topPct,1) + '% del N+F ($' + fM(topV.nf) + '). Riesgo si se va. Analizar sus prácticas para replicar con ' + botV.nombre + ' (último con $' + fM(botV.nf) + ').'});
+    }
+
+    if (bestTicket.ticket > worstTicket.ticket * 2 && worstTicket.ticket > 0) {
+      recs.push({icon:'🎫', title:'Brecha en ticket promedio',
+        text: bestTicket.nombre + ' tiene ticket de $' + fN(bestTicket.ticket,0) + ' vs $' + fN(worstTicket.ticket,0) + ' de ' + worstTicket.nombre + '. Capacitar vendedores de bajo ticket en técnicas de upselling.'});
+    }
+  }
+
+  // --- 3. Bonificaciones ---
+  if (k.bonif_pct !== undefined) {
+    if (k.bonif_pct > 10) {
+      recs.push({icon:'🎁', title:'Bonificaciones altas (' + fN(k.bonif_pct,1) + '%)',
+        text: 'El ' + fN(k.bonif_pct,1) + '% de las unidades son bonificadas. Revisar política: ¿se traducen en fidelización o es margen perdido? Comparar con meses anteriores.'});
+    } else if (k.bonif_pct > 5) {
+      recs.push({icon:'🎁', title:'Bonificaciones moderadas (' + fN(k.bonif_pct,1) + '%)',
+        text: 'Nivel aceptable de bonificación. Verificar que se concentren en marcas estratégicas y no en las que ya se venden solas.'});
+    } else {
+      recs.push({icon:'📉', title:'Bonificaciones bajas (' + fN(k.bonif_pct,1) + '%)',
+        text: 'Solo ' + fN(k.bonif_pct,1) + '% de unidades bonificadas. Considerar aumentar en marcas con baja penetración para ganar share.'});
+    }
+  }
+
+  // --- 4. Rutas ---
+  if (D.rutas && D.rutas.length >= 5) {
+    let topR = D.rutas.slice(0, 3);
+    let botR = [...D.rutas].sort((a,b) => a.neto - b.neto).slice(0, 3);
+    let topRpct = topR.reduce((s,r) => s + r.neto, 0) / k.total_neto * 100;
+    recs.push({icon:'🚛', title:'Eficiencia de rutas',
+      text: 'Top 3 rutas (' + topR.map(r=>r.zona).join(', ') + ') concentran ' + fN(topRpct,1) + '% de la venta neta. Rutas más débiles: ' + botR.map(r=>r.zona).join(', ') + '. Evaluar si conviene reforzarlas o reasignar recursos.'});
+  }
+
+  // --- 5. Clientes ---
+  if (D.top_clientes && D.top_clientes.length >= 3) {
+    let top3cli = D.top_clientes.slice(0, 3);
+    let top3pct = top3cli.reduce((s,c) => s + c.nf, 0) / k.total_nf * 100;
+    if (top3pct > 15) {
+      recs.push({icon:'👥', title:'Dependencia de pocos clientes',
+        text: 'Los 3 principales clientes representan ' + fN(top3pct,1) + '% del N+F. Riesgo de concentración. Desarrollar programa de fidelización para el segundo y tercer nivel de clientes.'});
+    } else {
+      recs.push({icon:'👥', title:'Cartera diversificada',
+        text: fN(k.total_clientes) + ' clientes activos con buena distribución. Top 3 representan solo ' + fN(top3pct,1) + '% del total. Seguir expandiendo base.'});
+    }
+  }
+
+  // --- 6. Ticket promedio ---
+  if (k.ticket_neto > 0) {
+    recs.push({icon:'💰', title:'Ticket promedio: $' + fN(k.ticket_neto,0),
+      text: 'Con ' + fN(k.total_facturas) + ' facturas y ticket promedio de $' + fN(k.ticket_neto,0) + '. Estrategia: si cada factura sube $' + fN(k.ticket_neto * 0.05,0) + ' (+5%), la facturación neta crece $' + fM(k.total_facturas * k.ticket_neto * 0.05) + '.'});
+  }
+
+  // --- 7. Productos con baja penetración ---
+  if (D.productos && D.productos.length >= 10) {
+    let lowPen = D.productos.filter(p => p.clientes <= 50 && p.neto > 0).slice(0, 3);
+    if (lowPen.length) {
+      recs.push({icon:'🔍', title:'Productos con potencial oculto',
+        text: lowPen.map(p => p.producto).join(', ') + ' tienen pocos clientes (<50) pero generan ventas. Oportunidad de crecimiento si se amplía su distribución.'});
+    }
+  }
+
+  // --- 8. Vendedores con muchas bonificaciones ---
+  if (D.bonif_vendedor && D.bonif_vendedor.length >= 2) {
+    let maxBonif = [...D.bonif_vendedor].sort((a,b) => b.pct - a.pct)[0];
+    if (maxBonif.pct > 10) {
+      recs.push({icon:'⚠️', title: maxBonif.nombre + ': ' + fN(maxBonif.pct,1) + '% bonificado',
+        text: 'Este vendedor tiene el mayor porcentaje de bonificaciones. Verificar si es estrategia comercial o si está excediendo los límites autorizados.'});
+    }
+  }
+
+  return recs.length ? recs : [{icon:'📊', title:'Datos cargados', text:'Se detectaron ' + fN(k.total_unidades) + ' unidades vendidas a ' + fN(k.total_clientes) + ' clientes. Cargá más meses para análisis comparativo.'}];
+}
+
 function renderClientes() {
   if (!D) return;
 
@@ -553,35 +656,15 @@ Clientes: <strong>${D.kpis.total_clientes}</strong> | Facturas: <strong>${D.kpis
 Ticket Promedio: <strong>${fN(D.kpis.ticket_neto)}</strong>`;
   }
 
-  // Recomendaciones
+  // Recomendaciones dinámicas
   let recsEl = document.getElementById('recs');
+  let recsTitle = document.getElementById('recs-title');
   if (recsEl) {
-    let recs = [];
-    if (D.marcas && D.marcas[0]) {
-      recs.push({
-        title: 'Marca Dominante',
-        text: `${D.marcas[0].marca} lidera con ${fP(D.marcas[0].neto, D.kpis.total_neto)}% de participación en neto.`
-      });
-    }
-    if (D.bonif_pct < 10) {
-      recs.push({
-        title: 'Baja Bonificación',
-        text: 'Considera aumentar el % de bonificación para mejorar las ventas de marcas estratégicas.'
-      });
-    }
-    if (D.kpis.total_clientes > 2000) {
-      recs.push({
-        title: 'Base de Clientes',
-        text: 'Excelente base de clientes. Enfocarse en retención y cross-sell.'
-      });
-    }
-    if (D.top_clientes && D.top_clientes[0]) {
-      recs.push({
-        title: 'Cliente Top',
-        text: `${D.top_clientes[0].cliente} es el cliente principal con ${fP(D.top_clientes[0].nf, D.kpis.total_nf)}% del total.`
-      });
-    }
-    recsEl.innerHTML = recs.map(r => `<div class="rec"><strong>${r.title}</strong><p>${r.text}</p></div>`).join('');
+    let periodo = document.getElementById('sel-periodo')?.value || '';
+    if (recsTitle) recsTitle.textContent = 'Recomendaciones' + (periodo ? ' \u2014 ' + periodo : '');
+    recsEl.innerHTML = generateRecommendations().map(r =>
+      `<div class="rec"><strong>${r.icon} ${r.title}</strong><p>${r.text}</p></div>`
+    ).join('');
   }
 }
 
