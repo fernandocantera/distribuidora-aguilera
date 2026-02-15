@@ -44,8 +44,16 @@ td.nf{color:var(--sec);font-weight:600}
 .btn{background:var(--acc);color:#fff;border:none;padding:10px 20px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600}
 .hdr-row{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}
 .hdr-controls{display:flex;gap:10px;align-items:center}
-.sel-periodo{padding:6px 10px;border-radius:6px;border:1px solid rgba(255,255,255,.4);background:rgba(255,255,255,.15);color:#fff;font-size:12px;font-weight:600;cursor:pointer}
-.sel-periodo option{color:#333;background:#fff}
+.periodo-picker{position:relative;display:inline-block}
+.periodo-btn{padding:6px 12px;border-radius:6px;border:1px solid rgba(255,255,255,.4);background:rgba(255,255,255,.15);color:#fff;font-size:12px;font-weight:600;cursor:pointer;min-width:140px;text-align:left}
+.periodo-btn:hover{background:rgba(255,255,255,.25)}
+.periodo-dd{display:none;position:absolute;top:100%;left:0;margin-top:4px;background:#fff;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.2);min-width:200px;max-height:320px;overflow-y:auto;z-index:150;padding:8px 0}
+.periodo-dd.open{display:block}
+.periodo-dd label{display:flex;align-items:center;gap:8px;padding:6px 14px;font-size:12px;color:#333;cursor:pointer;font-weight:500}
+.periodo-dd label:hover{background:#edf2f7}
+.periodo-dd input[type=checkbox]{accent-color:var(--acc);width:14px;height:14px}
+.periodo-dd .periodo-apply{display:block;width:calc(100% - 16px);margin:8px auto 4px;padding:6px;border:none;border-radius:6px;background:var(--acc);color:#fff;font-size:12px;font-weight:600;cursor:pointer}
+.periodo-dd .periodo-apply:hover{opacity:.85}
 .btn-sm{padding:6px 12px;font-size:11px;border-radius:4px;cursor:pointer;border:none;font-weight:600}
 .btn-cfg{background:rgba(255,255,255,.2);color:#fff;border:1px solid rgba(255,255,255,.4)}
 .btn-cfg:hover{background:rgba(255,255,255,.35)}
@@ -92,9 +100,13 @@ td.nf{color:var(--sec);font-weight:600}
 </div>
 <div class="hdr-controls">
 <span class="conn-status" id="conn-status"><span class="conn-dot off" id="conn-dot"></span> Sin conexión</span>
-<select class="sel-periodo" id="sel-periodo" title="Seleccionar período">
-<option value="">-- Período --</option>
-</select>
+<div class="periodo-picker" id="periodo-picker">
+<button class="periodo-btn" id="periodo-btn" type="button">-- Períodos --</button>
+<div class="periodo-dd" id="periodo-dd">
+<div id="periodo-checks"></div>
+<button class="periodo-apply" id="periodo-apply" type="button">Aplicar</button>
+</div>
+</div>
 <button class="btn-sm btn-cfg" onclick="downloadExcel()" title="Descargar reporte Excel" id="btn-excel" style="background:rgba(72,187,120,.3);border-color:rgba(72,187,120,.6)">📥 Excel</button>
 <button class="btn-sm btn-cfg" onclick="openConfig()" title="Configurar Supabase">⚙ Configurar</button>
 </div>
@@ -222,6 +234,17 @@ var D = null;
 var SUPABASE = null;
 var CHARTS = {};
 var RENDERED = {};
+var PERIODOS_SEL = [];
+
+function mergeByKey(rows, keyField, sumFields) {
+  var map = {};
+  rows.forEach(function(r) {
+    var key = typeof keyField === 'function' ? keyField(r) : r[keyField];
+    if (!map[key]) { map[key] = Object.assign({}, r); }
+    else { sumFields.forEach(function(f) { map[key][f] = (parseFloat(map[key][f])||0) + (parseFloat(r[f])||0); }); }
+  });
+  return Object.values(map);
+}
 
 function fN(n) { return new Intl.NumberFormat('es-AR', {style: 'currency', currency: 'ARS', maximumFractionDigits: 0}).format(n||0); }
 function fC(n) { return (n||0).toLocaleString('es-AR'); }
@@ -669,8 +692,8 @@ Ticket Promedio: <strong>${fN(D.kpis.ticket_neto)}</strong>`;
   let recsEl = document.getElementById('recs');
   let recsTitle = document.getElementById('recs-title');
   if (recsEl) {
-    let periodo = document.getElementById('sel-periodo')?.value || '';
-    if (recsTitle) recsTitle.textContent = 'Recomendaciones' + (periodo ? ' \u2014 ' + periodo : '');
+    let periodoLabel = PERIODOS_SEL.length === 1 ? PERIODOS_SEL[0] : (PERIODOS_SEL.length > 1 ? PERIODOS_SEL.join(' + ') : '');
+    if (recsTitle) recsTitle.textContent = 'Recomendaciones' + (periodoLabel ? ' \u2014 ' + periodoLabel : '');
     recsEl.innerHTML = generateRecommendations().map(r =>
       `<div class="rec"><strong>${r.icon} ${r.title}</strong><p>${r.text}</p></div>`
     ).join('');
@@ -727,11 +750,10 @@ async function connectSupabase() {
     await loadPeriodos();
     await loadHistory();
 
-    // Auto-load latest period (only if data exists)
+    // Auto-load latest period (loadPeriodos already checks the first checkbox)
     let {data: uploads} = await SUPABASE.from('uploads').select('periodo').order('fecha_carga', {ascending: false}).limit(1);
     if (uploads && uploads.length && uploads[0].periodo) {
-      document.getElementById('sel-periodo').value = uploads[0].periodo;
-      await loadFromSupabase(uploads[0].periodo);
+      await loadFromSupabase([uploads[0].periodo]);
     } else {
       console.log('Base de datos vacía. Subí un archivo Excel para comenzar.');
     }
@@ -741,6 +763,7 @@ async function connectSupabase() {
   }
 }
 
+var _periodoListenersAdded = false;
 async function loadPeriodos() {
   if (!SUPABASE) return;
   try {
@@ -748,111 +771,175 @@ async function loadPeriodos() {
     if (error) { console.error('Error loading periods:', error); return; }
     if (!data || !data.length) { console.log('No hay períodos cargados aún'); return; }
     let periodos = [...new Set(data.map(d => d.periodo))];
-    let sel = document.getElementById('sel-periodo');
-    sel.innerHTML = '<option value="">-- Período --</option>' + periodos.map(p => `<option value="${p}">${p}</option>`).join('');
-    sel.addEventListener('change', e => {
-      if (e.target.value) loadFromSupabase(e.target.value);
-    });
+    let checks = document.getElementById('periodo-checks');
+    checks.innerHTML = periodos.map(p => '<label><input type="checkbox" value="' + p + '"> ' + p + '</label>').join('');
+    if (!_periodoListenersAdded) {
+      _periodoListenersAdded = true;
+      // Toggle dropdown
+      document.getElementById('periodo-btn').addEventListener('click', function(e) {
+        e.stopPropagation();
+        document.getElementById('periodo-dd').classList.toggle('open');
+      });
+      // Close on outside click
+      document.addEventListener('click', function(e) {
+        if (!document.getElementById('periodo-picker').contains(e.target)) {
+          document.getElementById('periodo-dd').classList.remove('open');
+        }
+      });
+      // Apply button
+      document.getElementById('periodo-apply').addEventListener('click', function() {
+        var chk = document.getElementById('periodo-checks');
+        var selected = [];
+        chk.querySelectorAll('input:checked').forEach(function(cb) { selected.push(cb.value); });
+        if (selected.length === 0) return;
+        document.getElementById('periodo-dd').classList.remove('open');
+        updatePeriodoBtn(selected);
+        loadFromSupabase(selected);
+      });
+    }
+    // Auto-select latest period
+    if (periodos.length > 0) {
+      var first = checks.querySelector('input');
+      if (first) { first.checked = true; updatePeriodoBtn([periodos[0]]); }
+    }
   } catch(e) {
     console.error('Error loading periods:', e);
   }
 }
 
-async function loadFromSupabase(periodo) {
-  if (!SUPABASE || !periodo) return;
-  try {
-    console.log('Cargando datos para período:', periodo);
+function updatePeriodoBtn(periodos) {
+  var btn = document.getElementById('periodo-btn');
+  if (periodos.length === 0) { btn.textContent = '-- Períodos --'; }
+  else if (periodos.length === 1) { btn.textContent = periodos[0]; }
+  else if (periodos.length <= 3) { btn.textContent = periodos.join(' + '); }
+  else { btn.textContent = periodos[0] + ' + ' + (periodos.length-1) + ' más'; }
+}
 
-    // Fetch all views in parallel
+async function loadFromSupabase(periodos) {
+  if (!SUPABASE || !periodos) return;
+  // Accept string or array
+  if (typeof periodos === 'string') periodos = [periodos];
+  if (!periodos.length) return;
+  PERIODOS_SEL = periodos;
+  try {
+    console.log('Cargando datos para períodos:', periodos);
+
+    // Fetch all views in parallel using .in() for multi-period
     let [rKpis, rMarcas, rProductos, rVendedores, rRutas, rBonifV, rBonifM, rClientes, rCM] = await Promise.all([
-      SUPABASE.from('v_kpis').select('*').eq('periodo', periodo).single(),
-      SUPABASE.from('v_marcas').select('*').eq('periodo', periodo),
-      SUPABASE.from('v_productos').select('*').eq('periodo', periodo),
-      SUPABASE.from('v_vendedores').select('*').eq('periodo', periodo),
-      SUPABASE.from('v_rutas').select('*').eq('periodo', periodo),
-      SUPABASE.from('v_bonif_vendedor').select('*').eq('periodo', periodo),
-      SUPABASE.from('v_bonif_marca').select('*').eq('periodo', periodo),
-      SUPABASE.from('v_top_clientes').select('*').eq('periodo', periodo),
-      SUPABASE.from('v_clientes_marca').select('*').eq('periodo', periodo)
+      SUPABASE.from('v_kpis').select('*').in('periodo', periodos),
+      SUPABASE.from('v_marcas').select('*').in('periodo', periodos),
+      SUPABASE.from('v_productos').select('*').in('periodo', periodos),
+      SUPABASE.from('v_vendedores').select('*').in('periodo', periodos),
+      SUPABASE.from('v_rutas').select('*').in('periodo', periodos),
+      SUPABASE.from('v_bonif_vendedor').select('*').in('periodo', periodos),
+      SUPABASE.from('v_bonif_marca').select('*').in('periodo', periodos),
+      SUPABASE.from('v_top_clientes').select('*').in('periodo', periodos),
+      SUPABASE.from('v_clientes_marca').select('*').in('periodo', periodos)
     ]);
 
-    let kpis = rKpis.data;
-    let marcas = rMarcas.data || [];
-    let productos = rProductos.data || [];
-    let vendedores = rVendedores.data || [];
-    let rutas = rRutas.data || [];
-    let bonif_v = rBonifV.data || [];
-    let bonif_m = rBonifM.data || [];
-    let clientes = rClientes.data || [];
-    let cm = rCM.data || [];
+    let kpiRows = rKpis.data || [];
+    let marcasRaw = rMarcas.data || [];
+    let productosRaw = rProductos.data || [];
+    let vendedoresRaw = rVendedores.data || [];
+    let rutasRaw = rRutas.data || [];
+    let bonif_vRaw = rBonifV.data || [];
+    let bonif_mRaw = rBonifM.data || [];
+    let clientesRaw = rClientes.data || [];
+    let cmRaw = rCM.data || [];
 
     // Log any errors
-    [rKpis, rMarcas, rProductos, rVendedores, rRutas, rBonifV, rBonifM, rClientes, rCM].forEach((r, i) => {
+    [rKpis, rMarcas, rProductos, rVendedores, rRutas, rBonifV, rBonifM, rClientes, rCM].forEach(function(r, i) {
       if (r.error) console.error('View error #' + i + ':', r.error.message);
     });
 
-    if (!kpis && !marcas.length) {
-      console.warn('No se encontraron datos para el período:', periodo);
+    if (!kpiRows.length && !marcasRaw.length) {
+      console.warn('No se encontraron datos para los períodos:', periodos);
       return;
     }
 
-    // Build D object from views
+    // Merge multi-period data by key
+    var marcas = mergeByKey(marcasRaw, 'marca', ['unidades','neto','final','nf','clientes']);
+    var productos = mergeByKey(productosRaw, 'producto', ['unidades','neto','final','nf','clientes']);
+    var vendedores = mergeByKey(vendedoresRaw, 'vendedor_full', ['neto','final','nf','unidades','clientes','facturas','rutas']);
+    var rutas = mergeByKey(rutasRaw, 'ruta', ['neto','final','nf','unidades','clientes','facturas']);
+    var bonif_v = mergeByKey(bonif_vRaw, 'nombre', ['unid_bonif','total_unid']);
+    var bonif_m = mergeByKey(bonif_mRaw, 'marca', ['unid_bonif','total_unid']);
+    var clientes = mergeByKey(clientesRaw, 'cliente', ['neto','final','nf','unidades','facturas','marcas','productos']);
+    var cmMerged = mergeByKey(cmRaw, function(r){return r.marca+'|||'+r.cliente;}, ['unidades','neto','nf']);
+
+    // Recalculate derived fields
+    var totalUnidades = marcas.reduce(function(s,m){return s+(parseFloat(m.unidades)||0);},0);
+    marcas.forEach(function(m){ m.pct = totalUnidades ? ((parseFloat(m.unidades)||0)/totalUnidades*100) : 0; });
+    marcas.sort(function(a,b){return (parseFloat(b.neto)||0)-(parseFloat(a.neto)||0);});
+    vendedores.forEach(function(v){ v.ticket = (parseFloat(v.facturas)||0) ? (parseFloat(v.neto)||0)/(parseFloat(v.facturas)||0) : 0; });
+    vendedores.sort(function(a,b){return (parseFloat(b.neto)||0)-(parseFloat(a.neto)||0);});
+    rutas.forEach(function(r){ r.neto_x_cli = (parseInt(r.clientes)||0) ? (parseFloat(r.neto)||0)/(parseInt(r.clientes)||0) : 0; });
+    rutas.sort(function(a,b){return (parseFloat(b.neto)||0)-(parseFloat(a.neto)||0);});
+    bonif_v.forEach(function(b){ b.pct = (parseFloat(b.total_unid)||0) ? ((parseFloat(b.unid_bonif)||0)/(parseFloat(b.total_unid)||0)*100) : 0; });
+    bonif_v.sort(function(a,b){return (parseFloat(b.pct)||0)-(parseFloat(a.pct)||0);});
+    bonif_m.forEach(function(b){ b.pct = (parseFloat(b.total_unid)||0) ? ((parseFloat(b.unid_bonif)||0)/(parseFloat(b.total_unid)||0)*100) : 0; });
+    bonif_m.sort(function(a,b){return (parseFloat(b.pct)||0)-(parseFloat(a.pct)||0);});
+    productos.sort(function(a,b){return (parseFloat(b.neto)||0)-(parseFloat(a.neto)||0);});
+    clientes.sort(function(a,b){return (parseFloat(b.neto)||0)-(parseFloat(a.neto)||0);});
+
+    // Aggregate KPIs from multi-period rows
+    var totalNeto = kpiRows.reduce(function(s,r){return s+(parseFloat(r.total_neto)||0);},0);
+    var totalFinal = kpiRows.reduce(function(s,r){return s+(parseFloat(r.total_final)||0);},0);
+    var totalNf = kpiRows.reduce(function(s,r){return s+(parseFloat(r.total_nf)||0);},0);
+    var totalUnidadesKpi = kpiRows.reduce(function(s,r){return s+(parseFloat(r.total_unidades)||0);},0);
+    var totalFacturas = kpiRows.reduce(function(s,r){return s+(parseInt(r.total_facturas)||0);},0);
+    var totalBonifUnid = bonif_v.reduce(function(s,b){return s+(parseFloat(b.unid_bonif)||0);},0);
+    var totalBonifTotal = bonif_v.reduce(function(s,b){return s+(parseFloat(b.total_unid)||0);},0);
+
+    // Build D object from merged views
     D = {
-      kpis: kpis ? {
-        total_neto: parseFloat(kpis.total_neto) || 0,
-        total_final: parseFloat(kpis.total_final) || 0,
-        total_nf: parseFloat(kpis.total_nf) || 0,
-        total_unidades: parseFloat(kpis.total_unidades) || 0,
-        total_clientes: parseInt(kpis.total_clientes) || 0,
-        total_facturas: parseInt(kpis.total_facturas) || 0,
-        ticket_neto: parseFloat(kpis.ticket_neto) || 0,
-        total_productos: parseInt(kpis.total_productos) || 0,
-        total_marcas: parseInt(kpis.total_marcas) || 0,
-        total_vendedores: parseInt(kpis.total_vendedores) || 0,
-        total_rutas: parseInt(kpis.total_rutas) || 0,
-        bonif_pct: parseFloat(kpis.bonif_pct) || 0
-      } : {
-        total_neto: marcas.reduce((s, m) => s + parseFloat(m.neto || 0), 0),
-        total_final: marcas.reduce((s, m) => s + parseFloat(m.final || 0), 0),
-        total_nf: marcas.reduce((s, m) => s + parseFloat(m.nf || 0), 0),
-        total_unidades: marcas.reduce((s, m) => s + parseFloat(m.unidades || 0), 0),
+      kpis: {
+        total_neto: totalNeto,
+        total_final: totalFinal,
+        total_nf: totalNf,
+        total_unidades: totalUnidadesKpi,
         total_clientes: clientes.length,
-        total_facturas: vendedores.reduce((s, v) => s + parseInt(v.facturas || 0), 0),
-        ticket_neto: 0,
+        total_facturas: totalFacturas,
+        ticket_neto: totalFacturas ? totalNeto / totalFacturas : 0,
         total_productos: productos.length,
         total_marcas: marcas.length,
         total_vendedores: vendedores.length,
         total_rutas: rutas.length,
-        bonif_pct: bonif_v.length ? parseFloat(bonif_v[0].pct || 0) : 0
+        bonif_pct: totalBonifTotal ? (totalBonifUnid / totalBonifTotal * 100) : 0
       },
-      marcas: marcas.map(m => ({marca: m.marca, unidades: parseFloat(m.unidades)||0, neto: parseFloat(m.neto)||0, final: parseFloat(m.final)||0, nf: parseFloat(m.nf)||0, clientes: parseInt(m.clientes)||0, pct: parseFloat(m.pct)||0})),
-      productos: productos.map(p => ({producto: p.producto, marca: p.marca, unidades: parseFloat(p.unidades)||0, neto: parseFloat(p.neto)||0, final: parseFloat(p.final)||0, nf: parseFloat(p.nf)||0, clientes: parseInt(p.clientes)||0})),
-      vendedores: vendedores.map(v => ({vendedor_full: v.vendedor_full, nombre: v.nombre, neto: parseFloat(v.neto)||0, final: parseFloat(v.final)||0, nf: parseFloat(v.nf)||0, unidades: parseFloat(v.unidades)||0, clientes: parseInt(v.clientes)||0, facturas: parseInt(v.facturas)||0, rutas: parseInt(v.rutas)||0, ticket: parseFloat(v.ticket)||0})),
-      rutas: rutas.map(r => ({ruta: r.ruta, zona: r.zona, neto: parseFloat(r.neto)||0, final: parseFloat(r.final)||0, nf: parseFloat(r.nf)||0, unidades: parseFloat(r.unidades)||0, clientes: parseInt(r.clientes)||0, facturas: parseInt(r.facturas)||0, neto_x_cli: parseFloat(r.neto_x_cli)||0})),
-      bonif_vendedor: bonif_v.map(b => ({nombre: b.nombre, unid_bonif: parseFloat(b.unid_bonif)||0, total_unid: parseFloat(b.total_unid)||0, pct: parseFloat(b.pct)||0})),
-      bonif_marca: bonif_m.map(b => ({marca: b.marca, unid_bonif: parseFloat(b.unid_bonif)||0, total_unid: parseFloat(b.total_unid)||0, pct: parseFloat(b.pct)||0})),
-      top_clientes: clientes.map((c, i) => ({cliente: c.cliente, neto: parseFloat(c.neto)||0, final: parseFloat(c.final)||0, nf: parseFloat(c.nf)||0, unidades: parseFloat(c.unidades)||0, facturas: parseInt(c.facturas)||0, marcas: parseInt(c.marcas)||0, productos: parseInt(c.productos)||0})),
-      clientes_x_marca: cm.reduce((acc, c) => {
-        let marca = c.marca;
+      marcas: marcas.map(function(m){return {marca:m.marca, unidades:parseFloat(m.unidades)||0, neto:parseFloat(m.neto)||0, final:parseFloat(m.final)||0, nf:parseFloat(m.nf)||0, clientes:parseInt(m.clientes)||0, pct:parseFloat(m.pct)||0};}),
+      productos: productos.map(function(p){return {producto:p.producto, marca:p.marca, unidades:parseFloat(p.unidades)||0, neto:parseFloat(p.neto)||0, final:parseFloat(p.final)||0, nf:parseFloat(p.nf)||0, clientes:parseInt(p.clientes)||0};}),
+      vendedores: vendedores.map(function(v){return {vendedor_full:v.vendedor_full, nombre:v.nombre, neto:parseFloat(v.neto)||0, final:parseFloat(v.final)||0, nf:parseFloat(v.nf)||0, unidades:parseFloat(v.unidades)||0, clientes:parseInt(v.clientes)||0, facturas:parseInt(v.facturas)||0, rutas:parseInt(v.rutas)||0, ticket:parseFloat(v.ticket)||0};}),
+      rutas: rutas.map(function(r){return {ruta:r.ruta, zona:r.zona, neto:parseFloat(r.neto)||0, final:parseFloat(r.final)||0, nf:parseFloat(r.nf)||0, unidades:parseFloat(r.unidades)||0, clientes:parseInt(r.clientes)||0, facturas:parseInt(r.facturas)||0, neto_x_cli:parseFloat(r.neto_x_cli)||0};}),
+      bonif_vendedor: bonif_v.map(function(b){return {nombre:b.nombre, unid_bonif:parseFloat(b.unid_bonif)||0, total_unid:parseFloat(b.total_unid)||0, pct:parseFloat(b.pct)||0};}),
+      bonif_marca: bonif_m.map(function(b){return {marca:b.marca, unid_bonif:parseFloat(b.unid_bonif)||0, total_unid:parseFloat(b.total_unid)||0, pct:parseFloat(b.pct)||0};}),
+      top_clientes: clientes.map(function(c){return {cliente:c.cliente, neto:parseFloat(c.neto)||0, final:parseFloat(c.final)||0, nf:parseFloat(c.nf)||0, unidades:parseFloat(c.unidades)||0, facturas:parseInt(c.facturas)||0, marcas:parseInt(c.marcas)||0, productos:parseInt(c.productos)||0};}),
+      clientes_x_marca: cmMerged.reduce(function(acc, c) {
+        var marca = c.marca;
         if (!acc[marca]) acc[marca] = [];
         acc[marca].push({cliente: c.cliente, unidades: parseFloat(c.unidades)||0, neto: parseFloat(c.neto)||0, nf: parseFloat(c.nf)||0});
         return acc;
       }, {}),
-      all_marcas: marcas.map(m => m.marca)
+      all_marcas: marcas.map(function(m){return m.marca;})
     };
 
     // Reset charts for re-rendering
-    for (let k in CHARTS) { try { CHARTS[k].destroy(); } catch(e) {} }
+    for (var k in CHARTS) { try { CHARTS[k].destroy(); } catch(e) {} }
     CHARTS = {};
     RENDERED = {};
 
-    document.getElementById('periodo-label').textContent = '\u2014 ' + periodo;
+    // Update period label
+    var label;
+    if (periodos.length === 1) { label = '\u2014 ' + periodos[0]; }
+    else if (periodos.length <= 3) { label = '\u2014 ' + periodos.join(' + '); }
+    else { label = '\u2014 ' + periodos[0] + ' + ' + (periodos.length-1) + ' más'; }
+    document.getElementById('periodo-label').textContent = label;
     init();
 
     // Force re-render the currently active tab's charts and tables
-    let activeTab = document.querySelector('.tab.on');
+    var activeTab = document.querySelector('.tab.on');
     if (activeTab) {
-      let tab = activeTab.dataset.t;
+      var tab = activeTab.dataset.t;
       if (tab && tab !== 'upload' && tab !== 'resumen') {
         renderTab(tab);
       }
@@ -1051,6 +1138,7 @@ async function uploadToSupabase(rows, periodo, filename) {
     log('Archivo cargado exitosamente', 'ok');
 
     // Reload data
+    await loadPeriodos();
     await loadFromSupabase(periodo);
     await loadHistory();
 
@@ -1072,7 +1160,8 @@ function log(msg, type) {
 
 function downloadExcel() {
   if (!D || !D.kpis) { alert('No hay datos cargados para exportar.'); return; }
-  var periodo = document.getElementById('sel-periodo')?.value || 'Enero 2026';
+  var periodoArr = PERIODOS_SEL.length ? PERIODOS_SEL : ['Enero 2026'];
+  var periodo = periodoArr.length === 1 ? periodoArr[0] : periodoArr.join(' + ');
   var wb = XLSX.utils.book_new();
 
   // Style constants
@@ -1104,7 +1193,7 @@ function downloadExcel() {
   var k = D.kpis;
   // Title
   ws1['A1'] = {v:'DISTRIBUIDORA AGUILERA',t:'s',s:sTitle};
-  ws1['A2'] = {v:'Dashboard '+periodo+' \u2014 Neto | Final | N+F',t:'s',s:sSub};
+  ws1['A2'] = {v:(periodoArr.length > 1 ? 'Datos Acumulados: ' : 'Dashboard ') + periodo+' \u2014 Neto | Final | N+F',t:'s',s:sSub};
   // KPI row 1
   ws1['A4']={v:'Venta Neta',t:'s',s:sLbl}; ws1['B4']={v:k.total_neto,t:'n',s:sValCur};
   ws1['C4']={v:'Venta Final',t:'s',s:sLbl}; ws1['D4']={v:k.total_final,t:'n',s:sValCur};
@@ -1273,7 +1362,8 @@ function downloadExcel() {
   XLSX.utils.book_append_sheet(wb, ws6, 'Recomendaciones');
 
   // Generate
-  var filename = 'Dashboard_Aguilera_' + periodo.replace(/\s/g, '') + '.xlsx';
+  var fnParts = periodoArr.length === 1 ? periodoArr[0] : periodoArr[0] + '-' + periodoArr[periodoArr.length-1];
+  var filename = 'Dashboard_Aguilera_' + fnParts.replace(/\s/g, '') + '.xlsx';
   XLSX.writeFile(wb, filename);
 }
 
