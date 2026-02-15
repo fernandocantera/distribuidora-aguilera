@@ -95,6 +95,7 @@ td.nf{color:var(--sec);font-weight:600}
 <select class="sel-periodo" id="sel-periodo" title="Seleccionar período">
 <option value="">-- Período --</option>
 </select>
+<button class="btn-sm btn-cfg" onclick="downloadExcel()" title="Descargar reporte Excel" id="btn-excel" style="background:rgba(72,187,120,.3);border-color:rgba(72,187,120,.6)">📥 Excel</button>
 <button class="btn-sm btn-cfg" onclick="openConfig()" title="Configurar Supabase">⚙ Configurar</button>
 </div>
 </div>
@@ -1067,6 +1068,148 @@ function log(msg, type) {
     logEl.appendChild(span);
     logEl.scrollTop = logEl.scrollHeight;
   }
+}
+
+function downloadExcel() {
+  if (!D || !D.kpis) { alert('No hay datos cargados para exportar.'); return; }
+
+  let periodo = document.getElementById('sel-periodo')?.value || 'Enero 2026';
+  let wb = XLSX.utils.book_new();
+
+  // --- Helper: style-aware header row ---
+  function addSheet(name, headers, rows, colWidths) {
+    let aoa = [headers, ...rows];
+    let ws = XLSX.utils.aoa_to_sheet(aoa);
+    if (colWidths) ws['!cols'] = colWidths.map(w => ({wch: w}));
+    XLSX.utils.book_append_sheet(wb, ws, name);
+  }
+
+  // --- 1. RESUMEN / KPIs ---
+  let k = D.kpis;
+  let resumen = [
+    ['Distribuidora Aguilera - Reporte Analítico'],
+    ['Período:', periodo],
+    [],
+    ['INDICADORES CLAVE DE PERFORMANCE (KPIs)'],
+    [],
+    ['Indicador', 'Valor'],
+    ['Total Facturación Neto', k.total_neto],
+    ['Total Facturación Final', k.total_final],
+    ['Total Neto + Final', k.total_nf],
+    ['Total Unidades', k.total_unidades],
+    ['Total Clientes', k.total_clientes],
+    ['Total Facturas', k.total_facturas],
+    ['Ticket Promedio Neto', k.ticket_neto],
+    ['Total Productos', k.total_productos],
+    ['Total Marcas', k.total_marcas],
+    ['Total Vendedores', k.total_vendedores],
+    ['Total Rutas', k.total_rutas],
+    ['Bonificación %', k.bonif_pct / 100],
+    [],
+    ['RECOMENDACIONES'],
+    []
+  ];
+  let recs = generateRecommendations();
+  recs.forEach(r => resumen.push([r.icon + ' ' + r.title, r.text]));
+
+  let wsRes = XLSX.utils.aoa_to_sheet(resumen);
+  wsRes['!cols'] = [{wch: 35}, {wch: 80}];
+  // Format currency cells
+  ['B7','B8','B9','B13'].forEach(c => { if (wsRes[c]) wsRes[c].z = '$#,##0'; });
+  // Format percentage
+  if (wsRes['B18']) wsRes['B18'].z = '0.0%';
+  XLSX.utils.book_append_sheet(wb, wsRes, 'Resumen');
+
+  // --- 2. MARCAS ---
+  addSheet('Marcas',
+    ['Marca', 'Unidades', 'Importe Neto', 'Importe Final', 'Neto + Final', 'Clientes', '% Participación'],
+    D.marcas.map(m => [String(m.marca), m.unidades, m.neto, m.final, m.nf, m.clientes, m.pct / 100]),
+    [25, 12, 18, 18, 18, 10, 14]
+  );
+  // Format marcas currency & pct
+  let wsMarcas = wb.Sheets['Marcas'];
+  D.marcas.forEach((_, i) => {
+    let r = i + 2;
+    ['C','D','E'].forEach(c => { if (wsMarcas[c+r]) wsMarcas[c+r].z = '$#,##0'; });
+    if (wsMarcas['G'+r]) wsMarcas['G'+r].z = '0.0%';
+  });
+
+  // --- 3. PRODUCTOS ---
+  addSheet('Productos',
+    ['Producto', 'Marca', 'Unidades', 'Importe Neto', 'Importe Final', 'Neto + Final', 'Clientes'],
+    D.productos.map(p => [p.producto, String(p.marca), p.unidades, p.neto, p.final, p.nf, p.clientes]),
+    [30, 20, 12, 18, 18, 18, 10]
+  );
+  let wsProds = wb.Sheets['Productos'];
+  D.productos.forEach((_, i) => {
+    let r = i + 2;
+    ['D','E','F'].forEach(c => { if (wsProds[c+r]) wsProds[c+r].z = '$#,##0'; });
+  });
+
+  // --- 4. VENDEDORES ---
+  addSheet('Vendedores',
+    ['Vendedor', 'Importe Neto', 'Importe Final', 'Neto + Final', 'Unidades', 'Clientes', 'Facturas', 'Ticket Prom.'],
+    D.vendedores.map(v => [v.nombre, v.neto, v.final, v.nf, v.unidades, v.clientes, v.facturas, v.ticket]),
+    [28, 18, 18, 18, 12, 10, 10, 16]
+  );
+  let wsVend = wb.Sheets['Vendedores'];
+  D.vendedores.forEach((_, i) => {
+    let r = i + 2;
+    ['B','C','D','H'].forEach(c => { if (wsVend[c+r]) wsVend[c+r].z = '$#,##0'; });
+  });
+
+  // --- 5. RUTAS ---
+  addSheet('Rutas',
+    ['Ruta', 'Zona', 'Importe Neto', 'Importe Final', 'Neto + Final', 'Unidades', 'Clientes'],
+    D.rutas.map(r => [String(r.ruta), r.zona, r.neto, r.final, r.nf, r.unidades, r.clientes]),
+    [12, 20, 18, 18, 18, 12, 10]
+  );
+  let wsRutas = wb.Sheets['Rutas'];
+  D.rutas.forEach((_, i) => {
+    let r = i + 2;
+    ['C','D','E'].forEach(c => { if (wsRutas[c+r]) wsRutas[c+r].z = '$#,##0'; });
+  });
+
+  // --- 6. BONIFICACIONES ---
+  let bonifData = [
+    ['BONIFICACIÓN POR VENDEDOR'],
+    ['Vendedor', 'Unidades Bonif.', 'Total Unidades', '% Bonificación'],
+    ...D.bonif_vendedor.map(b => [b.nombre, b.unid_bonif, b.total_unid, b.pct / 100]),
+    [],
+    ['BONIFICACIÓN POR MARCA'],
+    ['Marca', 'Unidades Bonif.', 'Total Unidades', '% Bonificación'],
+    ...D.bonif_marca.map(b => [String(b.marca), b.unid_bonif, b.total_unid, b.pct / 100])
+  ];
+  let wsBonif = XLSX.utils.aoa_to_sheet(bonifData);
+  wsBonif['!cols'] = [{wch: 25}, {wch: 16}, {wch: 16}, {wch: 16}];
+  // Format pct for vendedor section
+  D.bonif_vendedor.forEach((_, i) => {
+    let r = i + 3;
+    if (wsBonif['D'+r]) wsBonif['D'+r].z = '0.0%';
+  });
+  // Format pct for marca section
+  let marcaStart = D.bonif_vendedor.length + 5;
+  D.bonif_marca.forEach((_, i) => {
+    let r = marcaStart + i + 2;
+    if (wsBonif['D'+r]) wsBonif['D'+r].z = '0.0%';
+  });
+  XLSX.utils.book_append_sheet(wb, wsBonif, 'Bonificaciones');
+
+  // --- 7. CLIENTES ---
+  addSheet('Top Clientes',
+    ['#', 'Cliente', 'Importe Neto', 'Importe Final', 'Neto + Final', 'Unidades', 'Marcas'],
+    D.top_clientes.slice(0, 30).map((c, i) => [i + 1, c.cliente, c.neto, c.final, c.nf, c.unidades, c.marcas]),
+    [5, 30, 18, 18, 18, 12, 8]
+  );
+  let wsCli = wb.Sheets['Top Clientes'];
+  D.top_clientes.slice(0, 30).forEach((_, i) => {
+    let r = i + 2;
+    ['C','D','E'].forEach(c => { if (wsCli[c+r]) wsCli[c+r].z = '$#,##0'; });
+  });
+
+  // --- Generate file ---
+  let filename = 'Reporte_Aguilera_' + periodo.replace(/\s/g, '_') + '.xlsx';
+  XLSX.writeFile(wb, filename);
 }
 
 window.addEventListener('load', async function() {
